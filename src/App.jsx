@@ -3,8 +3,8 @@ import { jsPDF } from "jspdf";
 import {
   ClipboardCheck, FileText, LayoutDashboard, FolderKanban, LogOut, ChevronRight,
   CheckCircle2, Circle, Clock, Upload, Plus, Trash2, ArrowLeft, ShieldCheck,
-  XCircle, Send, Gauge, AlertTriangle, Factory, UserCircle2, Download, RotateCcw,
-  Settings, Lock, BarChart3, MessageSquare, Pencil, Table2,
+  XCircle, Send, Gauge, AlertTriangle, Factory, Download, RotateCcw,
+  Settings, Lock, BarChart3, MessageSquare, Pencil, Table2, Bell, Zap,
 } from "lucide-react";
 
 /* ================================================================== *
@@ -59,6 +59,101 @@ const blueprint = {
     "linear-gradient(rgba(56,108,179,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(56,108,179,0.12) 1px, transparent 1px)",
   backgroundSize: "22px 22px",
 };
+
+function BrandMark({ px = 36 }) {
+  return (
+    <span className="relative flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-lg shadow-blue-900/30"
+      style={{ width: px, height: px }}>
+      <ClipboardCheck size={Math.round(px * 0.52)} strokeWidth={2.2} />
+    </span>
+  );
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  return Math.ceil((new Date(dateStr) - new Date()) / 86400000);
+}
+function relTime(dateStr) {
+  const d = daysUntil(dateStr);
+  if (d === null) return "";
+  if (d === 0) return "today";
+  if (d > 0) return `in ${d}d`;
+  return `${-d}d ago`;
+}
+function dueIn(days) {
+  const d = new Date(); d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/* ---- lightweight toast + confirm dialog (no extra deps) ---- */
+let toastListeners = [];
+let toastSeq = 0;
+function toast(message, tone = "success") {
+  const t = { id: ++toastSeq, message, tone };
+  toastListeners.forEach((fn) => fn(t));
+}
+function Toaster() {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    const add = (t) => {
+      setItems((cur) => [...cur, t]);
+      setTimeout(() => setItems((cur) => cur.filter((x) => x.id !== t.id)), 2600);
+    };
+    toastListeners.push(add);
+    return () => { toastListeners = toastListeners.filter((fn) => fn !== add); };
+  }, []);
+  return (
+    <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col gap-2">
+      {items.map((t) => (
+        <div key={t.id}
+          className={`pointer-events-auto flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg ${
+            t.tone === "error" ? "bg-rose-600" : t.tone === "info" ? "bg-slate-800" : "bg-emerald-600"}`}>
+          {t.tone === "error" ? <XCircle size={16} /> : t.tone === "info" ? <Bell size={16} /> : <CheckCircle2 size={16} />}
+          {t.message}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+let confirmListener = null;
+function confirmDialog(opts) {
+  return new Promise((resolve) => {
+    if (confirmListener) confirmListener({ ...opts, resolve });
+    else resolve(false);
+  });
+}
+function ConfirmHost() {
+  const [state, setState] = useState(null);
+  useEffect(() => {
+    confirmListener = (s) => setState(s);
+    return () => { confirmListener = null; };
+  }, []);
+  if (!state) return null;
+  const close = (val) => { state.resolve(val); setState(null); };
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => close(false)}>
+      <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-semibold text-slate-900">{state.title}</h3>
+        <p className="mt-1 text-sm text-slate-600">{state.body}</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={() => close(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
+          <button onClick={() => close(true)}
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${state.danger ? "bg-rose-600 hover:bg-rose-700" : "bg-blue-600 hover:bg-blue-700"}`}>{state.confirmLabel || "Confirm"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Avatar({ name, role, size = 30 }) {
+  const initials = name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const bg = role === "customer" ? "bg-emerald-500" : role === "admin" ? "bg-violet-500" : "bg-blue-500";
+  return (
+    <span className={`flex shrink-0 items-center justify-center rounded-full font-semibold text-white ${bg}`}
+      style={{ width: size, height: size, fontSize: size * 0.4 }}>{initials}</span>
+  );
+}
 
 /* --------------------------- persistence --------------------------- */
 const STORAGE_KEY = "ppap-demo-v1";
@@ -164,6 +259,7 @@ function seedProjects() {
       status: "draft",
       submission: null,
       elements,
+      due: dueIn(7),
       activity: [evt("Design records uploaded", 4), evt("Project created", 6)],
     },
     {
@@ -178,6 +274,7 @@ function seedProjects() {
       status: "approved",
       submission: { status: "approved", comments: "Reviewed and approved. Good capability on the seal groove." },
       elements: completedElements(),
+      due: dueIn(-2),
       activity: [evt("Approved by Meridian Motors", 1), evt("Submitted to customer", 3), evt("Project created", 14)],
     },
     {
@@ -192,7 +289,68 @@ function seedProjects() {
       status: "submitted",
       submission: { status: "pending", comments: "" },
       elements: completedElements(),
+      due: dueIn(3),
       activity: [evt("Submitted to customer", 1), evt("Customer engineering approval granted", 2), evt("Project created", 10)],
+    },
+    {
+      id: 4,
+      name: "Gearset Carrier — Transaxle",
+      partNumber: "72210-C",
+      partName: "Planetary Gearset Carrier",
+      customer: "Cascade Drivetrain",
+      supplier: "ABC Manufacturing",
+      revision: "C",
+      level: 3,
+      status: "rejected",
+      submission: { status: "rejected", comments: "Cpk on the bore is below 1.33 — please re-run the capability study after the tooling change and resubmit." },
+      elements: (() => { const e = completedElements(); e.initial_sample_inspection = { status: "completed", data: { lsl: "11.98", usl: "12.02", mean: "12.006", sd: "0.007" } }; return e; })(),
+      due: dueIn(5),
+      activity: [evt("Returned for changes", 1), evt("Submitted to customer", 2), evt("Project created", 12)],
+    },
+    {
+      id: 5,
+      name: "Wiring Harness Bracket",
+      partNumber: "88431-A",
+      partName: "Engine Bay Harness Bracket",
+      customer: "Apex Aerospace",
+      supplier: "ABC Manufacturing",
+      revision: "A",
+      level: 5,
+      status: "approved",
+      submission: { status: "approved", comments: "Full data reviewed on-site. Approved for production." },
+      elements: completedElements(),
+      due: dueIn(-10),
+      activity: [evt("Approved by Apex Aerospace", 4), evt("Submitted to customer", 9), evt("Project created", 30)],
+    },
+    {
+      id: 6,
+      name: "Cooling Fan Shroud",
+      partNumber: "55102-A",
+      partName: "Radiator Fan Shroud",
+      customer: "Northwind Motors",
+      supplier: "ABC Manufacturing",
+      revision: "A",
+      level: 1,
+      status: "draft",
+      submission: null,
+      elements: blankElements(),
+      due: dueIn(21),
+      activity: [evt("Project created", 1)],
+    },
+    {
+      id: 7,
+      name: "Brake Caliper Bracket",
+      partNumber: "41077-B",
+      partName: "Front Caliper Mounting Bracket",
+      customer: "Meridian Motors",
+      supplier: "ABC Manufacturing",
+      revision: "B",
+      level: 2,
+      status: "submitted",
+      submission: { status: "pending", comments: "" },
+      elements: completedElements(),
+      due: dueIn(2),
+      activity: [evt("Submitted to customer", 1), evt("Project created", 8)],
     },
   ];
 }
@@ -203,6 +361,7 @@ export default function App() {
   const [user, setUser] = useState(initial?.user || null);
   const [projects, setProjects] = useState(initial?.projects || seedProjects());
   const [route, setRoute] = useState({ view: "dashboard", projectId: null, elementId: null });
+  const [guideOpen, setGuideOpen] = useState(true);
 
   useEffect(() => {
     saveState({ user, projects });
@@ -211,11 +370,13 @@ export default function App() {
   const updateProject = (id, updater) =>
     setProjects((ps) => ps.map((p) => (p.id === id ? updater(p) : p)));
 
-  const resetDemo = () => {
-    if (!confirm("Reset the demo? This clears every project stored in your browser and reloads the sample data.")) return;
-    try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
-    setProjects(seedProjects());
-    setRoute({ view: "dashboard", projectId: null, elementId: null });
+  const resetDemo = async () => {
+    if (await confirmDialog({ title: "Reset the demo?", body: "This reloads the sample data and discards your changes.", confirmLabel: "Reset", danger: true })) {
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+      setProjects(seedProjects());
+      setRoute({ view: "dashboard", projectId: null, elementId: null });
+      toast("Demo reset to sample data", "info");
+    }
   };
 
   if (!user) return <Login onLogin={(u) => { setUser(u); setRoute({ view: "dashboard", projectId: null, elementId: null }); }} />;
@@ -226,8 +387,9 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden border-x border-slate-200 bg-slate-50">
         <Sidebar user={user} route={route} setRoute={setRoute} onLogout={() => setUser(null)} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar user={user} route={route} setRoute={setRoute} onLogout={() => setUser(null)} />
+          <TopBar user={user} route={route} setRoute={setRoute} projects={projects} onLogout={() => setUser(null)} />
           <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+            {route.view === "dashboard" && guideOpen && <DemoGuide role={user.role} onDismiss={() => setGuideOpen(false)} />}
             <Content
               user={user}
               projects={projects}
@@ -239,11 +401,13 @@ export default function App() {
           </main>
         </div>
       </div>
+      <Toaster />
+      <ConfirmHost />
     </div>
   );
 }
 
-function TopBar({ user, route, setRoute, onLogout }) {
+function TopBar({ user, route, setRoute, projects, onLogout }) {
   const roleColor = user.role === "customer" ? "bg-emerald-100 text-emerald-700"
     : user.role === "admin" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700";
   const navItems = [
@@ -251,6 +415,11 @@ function TopBar({ user, route, setRoute, onLogout }) {
     { key: "projects", label: "Projects" },
     { key: "analytics", label: "Stats" },
   ];
+  const [bellOpen, setBellOpen] = useState(false);
+  const notes = user.role === "supplier"
+    ? projects.filter((p) => p.status === "rejected").map((p) => ({ p, text: "Returned for changes", tone: "rose" }))
+    : projects.filter((p) => p.submission?.status === "pending").map((p) => ({ p, text: "Awaiting your review", tone: "amber" }));
+  const pending = notes.length;
   return (
     <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2.5 sm:px-6">
       <span className="hidden text-sm font-medium text-slate-700 sm:inline">PPAP workspace</span>
@@ -264,7 +433,51 @@ function TopBar({ user, route, setRoute, onLogout }) {
         })}
       </nav>
       <div className="flex items-center gap-2 sm:gap-3">
+        <div className="relative">
+          <button onClick={() => setBellOpen((o) => !o)}
+            title={pending > 0 ? `${pending} item${pending === 1 ? "" : "s"} need attention` : "No notifications"}
+            className="relative rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            <Bell size={18} />
+            {pending > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white">{pending}</span>
+            )}
+          </button>
+          {bellOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
+              <div className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
+                  <span className="text-sm font-semibold text-slate-700">Notifications</span>
+                  {pending > 0 && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">{pending} new</span>}
+                </div>
+                {notes.length === 0 ? (
+                  <div className="px-4 py-8 text-center">
+                    <CheckCircle2 size={22} className="mx-auto mb-1.5 text-emerald-400" />
+                    <p className="text-sm text-slate-400">You're all caught up.</p>
+                  </div>
+                ) : (
+                  <ul className="max-h-80 overflow-y-auto py-1">
+                    {notes.map(({ p, text, tone }) => (
+                      <li key={p.id}>
+                        <button onClick={() => { setRoute({ view: "project", projectId: p.id, elementId: null }); setBellOpen(false); }}
+                          className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition hover:bg-slate-50">
+                          <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${tone === "rose" ? "bg-rose-500" : "bg-amber-500"}`} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-slate-800">{p.name}</span>
+                            <span className="block font-mono text-xs text-slate-500">{text} · {p.partNumber}</span>
+                          </span>
+                          <ChevronRight size={15} className="mt-0.5 shrink-0 text-slate-300" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+        </div>
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${roleColor}`}>{user.role}</span>
+        <Avatar name={user.name} role={user.role} size={28} />
         <span className="hidden text-sm text-slate-600 sm:inline">{user.name}</span>
         <button onClick={onLogout}
           className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
@@ -290,38 +503,95 @@ function DemoBanner({ onReset }) {
 }
 
 /* ----------------------------- login ----------------------------- */
-function Login({ onLogin }) {
+function DemoGuide({ role, onDismiss }) {
+  const steps = role === "customer"
+    ? ["Open a package in your review queue below", "Skim the 18 elements and the live calculations", "Approve it — or return it with comments"]
+    : role === "admin"
+    ? ["Open any project and edit an element", "Watch the RPN and Cpk calculate live", "Submit it, then approve it yourself — or open Analytics"]
+    : ["Open a project below (or hit “New project”)", "Fill an element — RPN and Cpk calculate live", "Submit to the customer for approval"];
   return (
-    <div className="flex min-h-screen items-center justify-center p-6" style={blueprint}>
-      <div className="w-full max-w-md rounded-2xl border border-slate-700/50 bg-slate-900/80 p-8 shadow-2xl backdrop-blur">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-600 text-white">
-            <ClipboardCheck size={22} />
+    <div className="relative mb-6 overflow-hidden rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5">
+      <button onClick={onDismiss} title="Dismiss" className="absolute right-3 top-3 text-slate-400 transition hover:text-slate-600"><XCircle size={18} /></button>
+      <div className="mb-3 flex items-center gap-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white"><Zap size={16} /></span>
+        <h2 className="text-sm font-semibold text-slate-800">New here? The 30-second tour</h2>
+      </div>
+      <ol className="space-y-1.5">
+        {steps.map((t, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-semibold text-blue-700">{i + 1}</span>
+            {t}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function Login({ onLogin }) {
+  const chips = ["18 PPAP elements", "Live RPN & Cpk", "Approval workflow", "PDF + Excel export"];
+  const stats = [["18", "Elements"], ["5", "Levels"], ["3", "Roles"]];
+  return (
+    <div className="min-h-screen text-slate-100" style={blueprint}>
+      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-6">
+        <header className="flex items-center justify-between py-5">
+          <div className="flex items-center gap-2.5">
+            <BrandMark px={34} />
+            <span className="text-sm font-semibold tracking-tight text-white">PPAP Manager</span>
           </div>
+          <span className="hidden font-mono text-[11px] text-slate-400 sm:inline">AIAG-aligned · live demo</span>
+        </header>
+
+        <main className="grid flex-1 items-center gap-10 py-6 lg:grid-cols-2">
           <div>
-            <h1 className="text-lg font-semibold tracking-tight text-white">PPAP Manager</h1>
-            <p className="font-mono text-xs text-slate-400">Production Part Approval Process</p>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-300">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" /> Production Part Approval Process
+            </span>
+            <h1 className="mt-4 text-3xl font-bold leading-[1.1] tracking-tight text-white sm:text-[2.6rem]">
+              Run the entire PPAP,<br /><span className="text-blue-400">end to end.</span>
+            </h1>
+            <p className="mt-4 max-w-md text-base leading-relaxed text-slate-300">
+              All 18 elements, live FMEA and capability calculations, customer approval gates, and one-click warrant export — in one workspace instead of a folder of spreadsheets and email threads.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-2">
+              {chips.map((t) => (
+                <span key={t} className="rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-1.5 text-xs text-slate-300">{t}</span>
+              ))}
+            </div>
+            <div className="mt-8 grid max-w-xs grid-cols-3 gap-4 border-t border-slate-800 pt-6">
+              {stats.map(([v, l]) => (
+                <div key={l}>
+                  <p className="font-mono text-2xl font-bold text-white">{v}</p>
+                  <p className="text-xs text-slate-400">{l}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-        <p className="mb-5 text-sm text-slate-300">Pick a role to explore the demo. You can switch anytime.</p>
-        <div className="space-y-3">
-          <RoleButton
-            onClick={() => onLogin({ name: "Jane Operator", role: "supplier", company: "ABC Manufacturing" })}
-            icon={Factory} accent="blue" title="Sign in as Supplier"
-            sub="Build & submit packages · ABC Manufacturing"
-          />
-          <RoleButton
-            onClick={() => onLogin({ name: "Sam Reviewer", role: "customer", company: "Meridian Motors" })}
-            icon={ShieldCheck} accent="emerald" title="Sign in as Customer"
-            sub="Review & approve submissions · Meridian Motors"
-          />
-          <RoleButton
-            onClick={() => onLogin({ name: "Alex Admin", role: "admin", company: "PPAP System" })}
-            icon={Settings} accent="violet" title="Sign in as Admin"
-            sub="Full access — build, review, and approve"
-          />
-        </div>
-        <p className="mt-6 text-center font-mono text-[11px] text-slate-500">no signup · no backend · data stays in your browser</p>
+
+          <div className="rounded-2xl border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl backdrop-blur">
+            <h2 className="mb-1 text-sm font-semibold text-white">Launch the demo</h2>
+            <p className="mb-4 text-xs text-slate-400">Choose a role to explore. You can switch anytime.</p>
+            <div className="space-y-3">
+              <RoleButton
+                onClick={() => onLogin({ name: "Jane Operator", role: "supplier", company: "ABC Manufacturing" })}
+                icon={Factory} accent="blue" title="Enter as Supplier"
+                sub="Build & submit packages · ABC Manufacturing" />
+              <RoleButton
+                onClick={() => onLogin({ name: "Sam Reviewer", role: "customer", company: "Meridian Motors" })}
+                icon={ShieldCheck} accent="emerald" title="Enter as Customer"
+                sub="Review & approve submissions · Meridian Motors" />
+              <RoleButton
+                onClick={() => onLogin({ name: "Alex Admin", role: "admin", company: "PPAP System" })}
+                icon={Settings} accent="violet" title="Enter as Admin"
+                sub="Full access — build, review, and approve" />
+            </div>
+            <p className="mt-5 text-center font-mono text-[11px] text-slate-500">no signup · runs in your browser</p>
+          </div>
+        </main>
+
+        <footer className="border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+          PPAP Manager — product demo by <span className="text-slate-300">Your Name</span> · Not affiliated with AIAG
+        </footer>
       </div>
     </div>
   );
@@ -356,10 +626,11 @@ function Sidebar({ user, route, setRoute, onLogout }) {
   return (
     <aside className="hidden w-56 shrink-0 flex-col text-slate-300 sm:flex" style={blueprint}>
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-blue-600 text-white">
-          <ClipboardCheck size={18} />
+        <BrandMark px={36} />
+        <div>
+          <span className="block text-sm font-semibold leading-tight tracking-tight text-white">PPAP Manager</span>
+          <span className="block font-mono text-[10px] text-slate-500">approval workspace</span>
         </div>
-        <span className="text-sm font-semibold tracking-tight text-white">PPAP Manager</span>
       </div>
       <nav className="flex-1 px-3 py-2">
         {items.map(({ key, label, icon: Icon }) => {
@@ -374,8 +645,8 @@ function Sidebar({ user, route, setRoute, onLogout }) {
         })}
       </nav>
       <div className="border-t border-slate-800 p-3">
-        <div className="mb-2 flex items-center gap-2 px-2">
-          <UserCircle2 size={28} className="text-slate-500" />
+        <div className="mb-2 flex items-center gap-2.5 px-2">
+          <Avatar name={user.name} role={user.role} size={32} />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-white">{user.name}</p>
             <p className="truncate font-mono text-[11px] capitalize text-slate-400">{user.role} · {user.company}</p>
@@ -409,13 +680,13 @@ function Content({ user, projects, setProjects, updateProject, route, setRoute }
   }
   if (route.view === "analytics") return <AnalyticsView projects={projects} />;
   if (user.role === "admin")
-    return <AdminDashboard projects={projects} updateProject={updateProject}
+    return <AdminDashboard user={user} projects={projects} updateProject={updateProject}
       open={(id) => setRoute({ view: "project", projectId: id, elementId: null })}
       goProjects={() => setRoute({ view: "projects", projectId: null, elementId: null })} />;
   return user.role === "supplier"
-    ? <SupplierDashboard projects={projects} open={(id) => setRoute({ view: "project", projectId: id, elementId: null })}
+    ? <SupplierDashboard user={user} projects={projects} open={(id) => setRoute({ view: "project", projectId: id, elementId: null })}
         goProjects={() => setRoute({ view: "projects", projectId: null, elementId: null })} />
-    : <CustomerDashboard projects={projects} updateProject={updateProject}
+    : <CustomerDashboard user={user} projects={projects} updateProject={updateProject}
         open={(id) => setRoute({ view: "project", projectId: id, elementId: null })} />;
 }
 
@@ -428,23 +699,26 @@ function progressOf(project) {
 }
 
 /* --------------------------- dashboards --------------------------- */
-function SupplierDashboard({ projects, open, goProjects }) {
+function SupplierDashboard({ user, projects, open, goProjects }) {
   const mine = projects;
-  const totals = mine.reduce((acc, p) => {
-    const s = p.status;
-    acc[s] = (acc[s] || 0) + 1;
-    return acc;
-  }, {});
+  const totals = mine.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc; }, {});
+  const avg = mine.length ? Math.round(mine.reduce((s, p) => s + progressOf(p).pct, 0) / mine.length) : 0;
+  const first = user.name.split(" ")[0];
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="mb-1 text-xl font-semibold text-slate-900">Dashboard</h1>
+      <h1 className="mb-1 text-xl font-semibold text-slate-900">Welcome back, {first}</h1>
       <p className="mb-6 text-sm text-slate-500">Your PPAP packages at a glance.</p>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Projects" value={mine.length} />
-        <Stat label="Draft" value={totals.draft || 0} />
-        <Stat label="Awaiting review" value={totals.submitted || 0} accent="amber" />
-        <Stat label="Approved" value={totals.approved || 0} accent="emerald" />
+        <Stat label="Active projects" value={mine.length} icon={FolderKanban} accent="blue" />
+        <Stat label="Awaiting review" value={totals.submitted || 0} accent="amber" icon={Clock} />
+        <Stat label="Approved" value={totals.approved || 0} accent="emerald" icon={CheckCircle2} />
+        <Stat label="Avg. completion" value={`${avg}%`} icon={BarChart3} accent="blue" />
       </div>
+      {totals.rejected > 0 && (
+        <div className="mb-6 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <AlertTriangle size={16} /> {totals.rejected} package{totals.rejected === 1 ? " was" : "s were"} returned and need{totals.rejected === 1 ? "s" : ""} your attention.
+        </div>
+      )}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-700">Recent projects</h2>
         <button onClick={goProjects} className="text-sm text-blue-600 hover:underline">View all →</button>
@@ -544,22 +818,23 @@ function AnalyticsView({ projects }) {
   );
 }
 
-function AdminDashboard({ projects, updateProject, open, goProjects }) {
+function AdminDashboard({ user, projects, updateProject, open, goProjects }) {
   const pending = projects.filter((p) => p.submission && p.submission.status === "pending");
   const totals = projects.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc; }, {});
+  const avg = projects.length ? Math.round(projects.reduce((s, p) => s + progressOf(p).pct, 0) / projects.length) : 0;
   return (
     <div className="mx-auto max-w-4xl">
       <h1 className="mb-1 text-xl font-semibold text-slate-900">Admin overview</h1>
       <p className="mb-6 text-sm text-slate-500">Full access — you can build, review, and approve.</p>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Projects" value={projects.length} />
-        <Stat label="Awaiting review" value={totals.submitted || 0} accent="amber" />
-        <Stat label="Approved" value={totals.approved || 0} accent="emerald" />
-        <Stat label="Returned" value={totals.rejected || 0} />
+        <Stat label="Projects" value={projects.length} icon={FolderKanban} accent="blue" />
+        <Stat label="Awaiting review" value={totals.submitted || 0} accent="amber" icon={Clock} />
+        <Stat label="Approved" value={totals.approved || 0} accent="emerald" icon={CheckCircle2} />
+        <Stat label="Avg. completion" value={`${avg}%`} icon={BarChart3} accent="blue" />
       </div>
       {pending.length > 0 && (
         <>
-          <h2 className="mb-3 text-sm font-semibold text-slate-700">Awaiting your review</h2>
+          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Bell size={15} className="text-amber-500" /> Awaiting your review</h2>
           <div className="mb-6 space-y-4">
             {pending.map((p) => <ReviewCard key={p.id} project={p} updateProject={updateProject} open={() => open(p.id)} />)}
           </div>
@@ -574,12 +849,19 @@ function AdminDashboard({ projects, updateProject, open, goProjects }) {
   );
 }
 
-function CustomerDashboard({ projects, updateProject, open }) {
+function CustomerDashboard({ user, projects, updateProject, open }) {
   const pending = projects.filter((p) => p.submission && p.submission.status === "pending");
+  const approved = projects.filter((p) => p.status === "approved").length;
+  const first = user.name.split(" ")[0];
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="mb-1 text-xl font-semibold text-slate-900">Review queue</h1>
+      <h1 className="mb-1 text-xl font-semibold text-slate-900">Welcome back, {first}</h1>
       <p className="mb-6 text-sm text-slate-500">Submissions awaiting your engineering approval.</p>
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Stat label="In your queue" value={pending.length} accent="amber" icon={Bell} />
+        <Stat label="Approved" value={approved} accent="emerald" icon={CheckCircle2} />
+        <Stat label="Total packages" value={projects.length} icon={FolderKanban} accent="blue" />
+      </div>
       {pending.length === 0 ? (
         <EmptyState icon={ShieldCheck} title="Nothing to review"
           body="When a supplier submits a package, it appears here for approval. Sign in as Supplier to create and submit one." />
@@ -595,8 +877,10 @@ function CustomerDashboard({ projects, updateProject, open }) {
 function ReviewCard({ project, updateProject, open }) {
   const [comments, setComments] = useState("");
   const p = progressOf(project);
-  const decide = (status) =>
-    updateProject(project.id, (pr) => ({ ...pr, status, submission: { ...pr.submission, status, comments } }));
+  const decide = (status) => {
+    updateProject(project.id, (pr) => withEvent({ ...pr, status, submission: { ...pr.submission, status, comments } }, status === "approved" ? "Approved by customer" : "Returned for changes"));
+    toast(status === "approved" ? "Package approved" : "Returned to supplier", status === "approved" ? "success" : "info");
+  };
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between">
@@ -649,15 +933,20 @@ function ProjectsList({ user, projects, setProjects, open }) {
       status: "draft",
       submission: null,
       elements: blankElements(),
+      due: dueIn(30),
       activity: [evt("Project created")],
     };
     setProjects((ps) => [proj, ...ps]);
     setCreating(false);
+    toast("Project created");
     open(proj.id);
   };
 
-  const del = (id) => {
-    if (confirm("Delete this project? This can't be undone.")) setProjects((ps) => ps.filter((p) => p.id !== id));
+  const del = async (id) => {
+    if (await confirmDialog({ title: "Delete project?", body: "This permanently removes the package. This can't be undone.", confirmLabel: "Delete", danger: true })) {
+      setProjects((ps) => ps.filter((p) => p.id !== id));
+      toast("Project deleted", "info");
+    }
   };
 
   const term = q.trim().toLowerCase();
@@ -775,7 +1064,14 @@ function ProjectRow({ project, onClick, onDelete }) {
         </div>
         <ProgressBar pct={p.pct} />
         <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-          <span className="font-mono">{p.done}/{p.total} required · Level {project.level}</span>
+          <span className="flex items-center gap-2">
+            <span className="font-mono">{p.done}/{p.total} required · Level {project.level}</span>
+            {project.due && project.status !== "approved" && (() => {
+              const d = daysUntil(project.due);
+              const cls = d < 0 ? "bg-rose-100 text-rose-700" : d <= 3 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500";
+              return <span className={`rounded px-1.5 py-0.5 ${cls}`}>{d < 0 ? `Overdue ${-d}d` : `Due in ${d}d`}</span>;
+            })()}
+          </span>
           <span className="flex items-center gap-1 text-blue-600 group-hover:underline">Open <ChevronRight size={13} /></span>
         </div>
       </button>
@@ -800,11 +1096,11 @@ function ProjectView({ user, project, updateProject, openElement, back }) {
   const locked = project.status === "submitted" || project.status === "approved";
   const [reviewNote, setReviewNote] = useState("");
   const [editing, setEditing] = useState(false);
-  const saveEdits = (form) => { updateProject(project.id, (pr) => withEvent({ ...pr, ...form }, "Project details updated")); setEditing(false); };
+  const saveEdits = (form) => { updateProject(project.id, (pr) => withEvent({ ...pr, ...form }, "Project details updated")); setEditing(false); toast("Project details updated"); };
 
-  const submit = () => updateProject(project.id, (pr) => withEvent({ ...pr, status: "submitted", submission: { status: "pending", comments: "" } }, "Submitted to customer"));
-  const decide = (status) => updateProject(project.id, (pr) => withEvent({ ...pr, status, submission: { ...(pr.submission || {}), status, comments: reviewNote } }, status === "approved" ? "Approved by customer" : "Returned for changes"));
-  const reopen = () => updateProject(project.id, (pr) => withEvent({ ...pr, status: "draft" }, "Reopened for edits"));
+  const submit = () => { updateProject(project.id, (pr) => withEvent({ ...pr, status: "submitted", submission: { status: "pending", comments: "" } }, "Submitted to customer")); toast("Submitted to customer"); };
+  const decide = (status) => { updateProject(project.id, (pr) => withEvent({ ...pr, status, submission: { ...(pr.submission || {}), status, comments: reviewNote } }, status === "approved" ? "Approved by customer" : "Returned for changes")); toast(status === "approved" ? "Package approved" : "Returned to supplier", status === "approved" ? "success" : "info"); };
+  const reopen = () => { updateProject(project.id, (pr) => withEvent({ ...pr, status: "draft" }, "Reopened for edits")); toast("Reopened for edits", "info"); };
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -1062,7 +1358,7 @@ function ElementEditor({ user, project, updateProject, elementId, back }) {
             </div>
           ) : customerLike ? (
             <div className="flex justify-end">
-              <button onClick={() => setStatus("completed")}
+              <button onClick={() => { setStatus("completed"); toast("Engineering approval granted"); }}
                 className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
                 <ShieldCheck size={16} /> Approve engineering sign-off
               </button>
@@ -1559,6 +1855,7 @@ function exportPSW(project) {
   });
 
   doc.save(`PSW_${project.partNumber || "part"}.pdf`);
+  toast("PSW exported as PDF");
 }
 
 function elementSummary(kind, data) {
@@ -1623,6 +1920,7 @@ function exportPackage(project) {
     y += 6;
   });
   doc.save(`PPAP_${project.partNumber || "package"}.pdf`);
+  toast("Package exported as PDF");
 }
 
 function exportCSV(project) {
@@ -1649,6 +1947,7 @@ function exportCSV(project) {
   a.href = url; a.download = `PPAP_${project.partNumber || "package"}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
+  toast("Exported to CSV");
 }
 
 /* ------------------ stable form inputs (module scope) ------------------ *
@@ -1686,12 +1985,18 @@ function NumCell({ value, onChange, disabled, w = "w-20" }) {
 }
 
 /* ----------------------------- bits ----------------------------- */
-function Stat({ label, value, accent }) {
-  const color = accent === "amber" ? "text-amber-600" : accent === "emerald" ? "text-emerald-600" : "text-slate-900";
+function Stat({ label, value, accent, icon: Icon }) {
+  const color = accent === "amber" ? "text-amber-600" : accent === "emerald" ? "text-emerald-600" : accent === "blue" ? "text-blue-600" : "text-slate-900";
+  const iconBg = accent === "amber" ? "bg-amber-50 text-amber-500" : accent === "emerald" ? "bg-emerald-50 text-emerald-500" : "bg-blue-50 text-blue-500";
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <p className={`text-2xl font-semibold ${color}`}>{value}</p>
-      <p className="mt-0.5 text-xs text-slate-500">{label}</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className={`text-2xl font-semibold ${color}`}>{value}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{label}</p>
+        </div>
+        {Icon && <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconBg}`}><Icon size={16} /></span>}
+      </div>
     </div>
   );
 }
