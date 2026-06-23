@@ -4,11 +4,12 @@ import {
   ClipboardCheck, FileText, LayoutDashboard, FolderKanban, LogOut, ChevronRight,
   CheckCircle2, Circle, Clock, Upload, Plus, Trash2, ArrowLeft, ShieldCheck,
   XCircle, Send, Gauge, AlertTriangle, Factory, Download, RotateCcw,
-  Settings, Lock, BarChart3, MessageSquare, Pencil, Table2, Bell, Zap,
+  Settings, Lock, BarChart3, MessageSquare, Pencil, Table2, Bell, Zap, MoreVertical, Users, Mail, UserPlus,
 } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
 /* ================================================================== *
- *  PPAP Manager — demo build
+ *  PPAP Manager - demo build
  *  Client-only. All data persists in the visitor's own browser
  *  (localStorage). No backend, no accounts, nothing shared.
  * ================================================================== */
@@ -35,7 +36,7 @@ const ELEMENTS = [
 ];
 
 const LEVEL_NOTE = {
-  1: "Warrant only — submitted to customer.",
+  1: "Warrant only - submitted to customer.",
   2: "Warrant with product samples and limited supporting data.",
   3: "Warrant, samples, and complete supporting data (default).",
   4: "Warrant and customer-defined requirements.",
@@ -60,7 +61,15 @@ const blueprint = {
   backgroundSize: "22px 22px",
 };
 
-function BrandMark({ px = 36 }) {
+function BrandMark({ px = 36, variant = "blue" }) {
+  if (variant === "light") {
+    return (
+      <span className="relative flex shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm"
+        style={{ width: px, height: px }}>
+        <ClipboardCheck size={Math.round(px * 0.52)} strokeWidth={2.2} />
+      </span>
+    );
+  }
   return (
     <span className="relative flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-lg shadow-blue-900/30"
       style={{ width: px, height: px }}>
@@ -146,9 +155,31 @@ function ConfirmHost() {
   );
 }
 
+const ROLES = {
+  supplier_admin: { label: "Supplier Admin", org: "supplier" },
+  supplier_member: { label: "Supplier Member", org: "supplier" },
+  customer_admin: { label: "Customer Admin", org: "customer" },
+  customer_member: { label: "Customer Member", org: "customer" },
+};
+const roleLabel = (r) => (ROLES[r] ? ROLES[r].label : r);
+const roleOrg = (r) => (ROLES[r] ? ROLES[r].org : "supplier");
+const isSupplier = (u) => !!u && roleOrg(u.role) === "supplier";
+const isCustomer = (u) => !!u && roleOrg(u.role) === "customer";
+const canManageUsers = (u) => !!u && u.role.endsWith("_admin");
+
+const SUPPLIER_CO = "Apex Components";
+const CUSTOMER_CO = "Meridian Motors";
+const USERS = [
+  { id: 1, name: "Chaitanya Patwardhan", email: "chaitanya.patwardhan@apexcomponents.com", company: SUPPLIER_CO, role: "supplier_admin", title: "Quality Lead" },
+  { id: 2, name: "Priya Nair", email: "priya.nair@apexcomponents.com", company: SUPPLIER_CO, role: "supplier_member", title: "Supplier Engineer" },
+  { id: 3, name: "Marcus Webb", email: "marcus.webb@apexcomponents.com", company: SUPPLIER_CO, role: "supplier_member", title: "Manufacturing Engineer" },
+  { id: 4, name: "Sarah Chen", email: "sarah.chen@meridianmotors.com", company: CUSTOMER_CO, role: "customer_admin", title: "Quality Manager" },
+  { id: 5, name: "Daniel Reyes", email: "daniel.reyes@meridianmotors.com", company: CUSTOMER_CO, role: "customer_member", title: "Customer Quality Engineer" },
+];
+
 function Avatar({ name, role, size = 30 }) {
   const initials = name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
-  const bg = role === "customer" ? "bg-emerald-500" : role === "admin" ? "bg-violet-500" : "bg-blue-500";
+  const bg = roleOrg(role) === "customer" ? "bg-emerald-500" : "bg-blue-500";
   return (
     <span className={`flex shrink-0 items-center justify-center rounded-full font-semibold text-white ${bg}`}
       style={{ width: size, height: size, fontSize: size * 0.4 }}>{initials}</span>
@@ -168,7 +199,7 @@ function loadState() {
 function saveState(state) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) { /* quota or privacy mode — demo still works in-session */ }
+  } catch (e) { /* quota or privacy mode - demo still works in-session */ }
 }
 
 function blankElements() {
@@ -182,7 +213,7 @@ const nextId = () => ++_id;
 
 function completedElements() {
   const out = {};
-  ELEMENTS.forEach((e) => (out[e.id] = { status: "completed", data: { files: [{ name: `${e.id}_evidence.pdf`, size: 120000 }] } }));
+  ELEMENTS.forEach((e) => (out[e.id] = { status: "completed", data: { files: [{ name: `${e.id}_evidence.pdf`, size: 120000, version: 1, at: "2026-06-10", by: "Priya Nair" }] } }));
   out.design_fmea = {
     status: "completed",
     data: { rows: [
@@ -235,122 +266,61 @@ function withEvent(project, text) {
 }
 
 function seedProjects() {
-  const elements = blankElements();
-  elements.design_records = { status: "completed", data: { files: [{ name: "bracket_47829-A_revC.pdf", size: 248000 }], notes: "Released drawing, Rev C." } };
-  elements.process_flow_diagram = { status: "completed", data: { files: [{ name: "process_flow_47829.png", size: 96000 }] } };
-  elements.control_plan = { status: "in_progress", data: {} };
-  elements.customer_engineering_approval = { status: "in_progress", data: { notes: "Design approval requested — awaiting customer sign-off." } };
-  elements.design_fmea = {
-    status: "in_progress",
-    data: { rows: [
-      { id: 1, item: "Mounting tab", fn: "Locate bracket", mode: "Tab cracks", effect: "Loss of retention", sev: 8, cause: "Stress concentration", occ: 4, ctrl: "FEA + radius spec", det: 3 },
-    ] },
-  };
+  const draftEls = blankElements();
+  draftEls.design_records = { status: "completed", data: { files: [{ name: "SB-1180-A_drawing_revA.pdf", size: 248000, by: "Marcus Webb", at: "2026-06-08", version: 2 }], notes: "Released drawing, Rev A." } };
+  draftEls.process_flow_diagram = { status: "completed", data: { steps: [
+    { id: 1, name: "Receive blank", type: "Operation", desc: "Steel stamping" },
+    { id: 2, name: "Form bracket", type: "Operation", desc: "Press op 10" },
+    { id: 3, name: "Inspect form", type: "Inspection", desc: "Go/no-go" },
+  ] } };
+  draftEls.design_fmea = { status: "in_progress", data: { rows: [
+    { id: 1, item: "Mounting arm", fn: "Locate bracket", mode: "Arm cracks", effect: "Loss of retention", sev: 8, cause: "Stress concentration", occ: 4, ctrl: "FEA + radius spec", det: 3 },
+  ] } };
+
+  const lowCpk = () => { const e = completedElements(); e.initial_sample_inspection = { status: "completed", data: { lsl: "11.98", usl: "12.02", mean: "12.006", sd: "0.007" } }; return e; };
+
   return [
     {
-      id: 1,
-      name: "Bracket Assembly — Front Subframe",
-      partNumber: "47829-A",
-      partName: "Subframe Mounting Bracket",
-      customer: "Meridian Motors",
-      supplier: "ABC Manufacturing",
-      revision: "C",
-      level: 3,
-      status: "draft",
-      submission: null,
-      elements,
-      due: dueIn(7),
-      activity: [evt("Design records uploaded", 4), evt("Project created", 6)],
+      id: 1, name: "Sensor Housing", partNumber: "SH-2045-A", partName: "Coolant Temp Sensor Housing",
+      customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "A", level: 3,
+      status: "submitted", submission: { status: "pending", comments: "" },
+      owner: "Priya Nair", elements: completedElements(), due: dueIn(4),
+      activity: [evt("Submitted for approval", 1), evt("Customer engineering approval granted", 2), evt("Created by Priya Nair", 9)],
     },
     {
-      id: 2,
-      name: "Sensor Housing — Cooling Module",
-      partNumber: "51120-B",
-      partName: "Coolant Temp Sensor Housing",
-      customer: "Meridian Motors",
-      supplier: "ABC Manufacturing",
-      revision: "B",
-      level: 3,
-      status: "approved",
-      submission: { status: "approved", comments: "Reviewed and approved. Good capability on the seal groove." },
-      elements: completedElements(),
-      due: dueIn(-2),
-      activity: [evt("Approved by Meridian Motors", 1), evt("Submitted to customer", 3), evt("Project created", 14)],
+      id: 2, name: "Cooling Module", partNumber: "CM-8871-B", partName: "Radiator Cooling Module",
+      customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "B", level: 3,
+      status: "approved", submission: { status: "approved", comments: "Reviewed and approved. Strong capability on the seal groove.", by: "Sarah Chen" },
+      owner: "Chaitanya Patwardhan", elements: completedElements(), due: dueIn(-6),
+      activity: [evt("Approved by Sarah Chen", 2), evt("Submitted for approval", 5), evt("Created by Chaitanya Patwardhan", 18)],
     },
     {
-      id: 3,
-      name: "Pump Impeller — Coolant Loop",
-      partNumber: "63004-A",
-      partName: "Centrifugal Coolant Impeller",
-      customer: "Meridian Motors",
-      supplier: "ABC Manufacturing",
-      revision: "A",
-      level: 3,
-      status: "submitted",
-      submission: { status: "pending", comments: "" },
-      elements: completedElements(),
-      due: dueIn(3),
-      activity: [evt("Submitted to customer", 1), evt("Customer engineering approval granted", 2), evt("Project created", 10)],
+      id: 3, name: "Brake Assembly", partNumber: "BR-3302-C", partName: "Front Brake Caliper Assembly",
+      customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "C", level: 3,
+      status: "rejected", submission: { status: "rejected", comments: "Cpk on the bore is below 1.33. Please re-run the capability study after the tooling change and resubmit.", by: "Sarah Chen" },
+      owner: "Priya Nair", elements: lowCpk(), due: dueIn(6),
+      activity: [evt("Returned for changes by Sarah Chen", 1), evt("Submitted for approval", 2), evt("Created by Priya Nair", 12)],
     },
     {
-      id: 4,
-      name: "Gearset Carrier — Transaxle",
-      partNumber: "72210-C",
-      partName: "Planetary Gearset Carrier",
-      customer: "Cascade Drivetrain",
-      supplier: "ABC Manufacturing",
-      revision: "C",
-      level: 3,
-      status: "rejected",
-      submission: { status: "rejected", comments: "Cpk on the bore is below 1.33 — please re-run the capability study after the tooling change and resubmit." },
-      elements: (() => { const e = completedElements(); e.initial_sample_inspection = { status: "completed", data: { lsl: "11.98", usl: "12.02", mean: "12.006", sd: "0.007" } }; return e; })(),
-      due: dueIn(5),
-      activity: [evt("Returned for changes", 1), evt("Submitted to customer", 2), evt("Project created", 12)],
+      id: 4, name: "Steering Bracket", partNumber: "SB-1180-A", partName: "Steering Column Bracket",
+      customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "A", level: 3,
+      status: "draft", submission: null,
+      owner: "Marcus Webb", elements: draftEls, due: dueIn(14),
+      activity: [evt("Design records uploaded by Marcus Webb", 3), evt("Created by Marcus Webb", 5)],
     },
     {
-      id: 5,
-      name: "Wiring Harness Bracket",
-      partNumber: "88431-A",
-      partName: "Engine Bay Harness Bracket",
-      customer: "Apex Aerospace",
-      supplier: "ABC Manufacturing",
-      revision: "A",
-      level: 5,
-      status: "approved",
-      submission: { status: "approved", comments: "Full data reviewed on-site. Approved for production." },
-      elements: completedElements(),
-      due: dueIn(-10),
-      activity: [evt("Approved by Apex Aerospace", 4), evt("Submitted to customer", 9), evt("Project created", 30)],
+      id: 5, name: "Battery Mount", partNumber: "BM-4420-A", partName: "HV Battery Mounting Frame",
+      customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "A", level: 3,
+      status: "submitted", submission: { status: "pending", comments: "" },
+      owner: "Chaitanya Patwardhan", elements: completedElements(), due: dueIn(2),
+      activity: [evt("Submitted for approval", 1), evt("Created by Chaitanya Patwardhan", 8)],
     },
     {
-      id: 6,
-      name: "Cooling Fan Shroud",
-      partNumber: "55102-A",
-      partName: "Radiator Fan Shroud",
-      customer: "Northwind Motors",
-      supplier: "ABC Manufacturing",
-      revision: "A",
-      level: 1,
-      status: "draft",
-      submission: null,
-      elements: blankElements(),
-      due: dueIn(21),
-      activity: [evt("Project created", 1)],
-    },
-    {
-      id: 7,
-      name: "Brake Caliper Bracket",
-      partNumber: "41077-B",
-      partName: "Front Caliper Mounting Bracket",
-      customer: "Meridian Motors",
-      supplier: "ABC Manufacturing",
-      revision: "B",
-      level: 2,
-      status: "submitted",
-      submission: { status: "pending", comments: "" },
-      elements: completedElements(),
-      due: dueIn(2),
-      activity: [evt("Submitted to customer", 1), evt("Project created", 8)],
+      id: 6, name: "Coolant Pump", partNumber: "CP-7763-A", partName: "Electric Coolant Pump Body",
+      customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "A", level: 1,
+      status: "draft", submission: null,
+      owner: "Marcus Webb", elements: blankElements(), due: dueIn(21),
+      activity: [evt("Created by Marcus Webb", 1)],
     },
   ];
 }
@@ -362,10 +332,11 @@ export default function App() {
   const [projects, setProjects] = useState(initial?.projects || seedProjects());
   const [route, setRoute] = useState({ view: "dashboard", projectId: null, elementId: null });
   const [guideOpen, setGuideOpen] = useState(true);
+  const [users, setUsers] = useState(initial?.users || USERS);
 
   useEffect(() => {
-    saveState({ user, projects });
-  }, [user, projects]);
+    saveState({ user, projects, users });
+  }, [user, projects, users]);
 
   const updateProject = (id, updater) =>
     setProjects((ps) => ps.map((p) => (p.id === id ? updater(p) : p)));
@@ -395,6 +366,8 @@ export default function App() {
               projects={projects}
               setProjects={setProjects}
               updateProject={updateProject}
+              users={users}
+              setUsers={setUsers}
               route={route}
               setRoute={setRoute}
             />
@@ -408,15 +381,14 @@ export default function App() {
 }
 
 function TopBar({ user, route, setRoute, projects, onLogout }) {
-  const roleColor = user.role === "customer" ? "bg-emerald-100 text-emerald-700"
-    : user.role === "admin" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700";
+  const roleColor = isCustomer(user) ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700";
   const navItems = [
-    { key: "dashboard", label: user.role === "customer" ? "Review" : "Home" },
-    { key: "projects", label: "Projects" },
+    { key: "dashboard", label: "Home" },
+    { key: "projects", label: "Packages" },
     { key: "analytics", label: "Stats" },
   ];
   const [bellOpen, setBellOpen] = useState(false);
-  const notes = user.role === "supplier"
+  const notes = isSupplier(user)
     ? projects.filter((p) => p.status === "rejected").map((p) => ({ p, text: "Returned for changes", tone: "rose" }))
     : projects.filter((p) => p.submission?.status === "pending").map((p) => ({ p, text: "Awaiting your review", tone: "amber" }));
   const pending = notes.length;
@@ -476,7 +448,7 @@ function TopBar({ user, route, setRoute, projects, onLogout }) {
             </>
           )}
         </div>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${roleColor}`}>{user.role}</span>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${roleColor}`}>{roleLabel(user.role)}</span>
         <Avatar name={user.name} role={user.role} size={28} />
         <span className="hidden text-sm text-slate-600 sm:inline">{user.name}</span>
         <button onClick={onLogout}
@@ -490,12 +462,12 @@ function TopBar({ user, route, setRoute, projects, onLogout }) {
 
 function DemoBanner({ onReset }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-x border-t border-slate-200 bg-slate-900 px-4 py-2 text-xs text-slate-300">
+    <div className="flex items-center justify-between gap-3 border-x border-t border-blue-100 bg-blue-50 px-4 py-2 text-xs text-blue-800">
       <span className="flex items-center gap-2">
-        <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-        Live demo · your data stays in this browser, nothing is sent anywhere
+        <span className="inline-flex h-1.5 w-1.5 rounded-full bg-blue-500" />
+        Live demo. Your data stays in this browser; nothing is sent anywhere.
       </span>
-      <button onClick={onReset} className="flex items-center gap-1 rounded px-2 py-1 text-slate-400 transition hover:bg-slate-800 hover:text-white">
+      <button onClick={onReset} className="flex items-center gap-1 rounded px-2 py-1 text-blue-600 transition hover:bg-blue-100 hover:text-blue-800">
         <RotateCcw size={12} /> Reset demo
       </button>
     </div>
@@ -504,11 +476,9 @@ function DemoBanner({ onReset }) {
 
 /* ----------------------------- login ----------------------------- */
 function DemoGuide({ role, onDismiss }) {
-  const steps = role === "customer"
-    ? ["Open a package in your review queue below", "Skim the 18 elements and the live calculations", "Approve it — or return it with comments"]
-    : role === "admin"
-    ? ["Open any project and edit an element", "Watch the RPN and Cpk calculate live", "Submit it, then approve it yourself — or open Analytics"]
-    : ["Open a project below (or hit “New project”)", "Fill an element — RPN and Cpk calculate live", "Submit to the customer for approval"];
+  const steps = roleOrg(role) === "customer"
+    ? ["Open a package in your approval queue below", "Review the 18 elements and the live calculations", "Approve it, or return it with comments"]
+    : ["Open a package below (or click New package)", "Fill an element. RPN and Cpk calculate live", "Submit it to the customer for approval"];
   return (
     <div className="relative mb-6 overflow-hidden rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5">
       <button onClick={onDismiss} title="Dismiss" className="absolute right-3 top-3 text-slate-400 transition hover:text-slate-600"><XCircle size={18} /></button>
@@ -529,89 +499,80 @@ function DemoGuide({ role, onDismiss }) {
 }
 
 function Login({ onLogin }) {
-  const chips = ["18 PPAP elements", "Live RPN & Cpk", "Approval workflow", "PDF + Excel export"];
-  const stats = [["18", "Elements"], ["5", "Levels"], ["3", "Roles"]];
+  const roles = [
+    { role: "supplier_admin", user: USERS[0], icon: Factory, accent: "blue", desc: "Create, edit, submit packages and manage your team" },
+    { role: "supplier_member", user: USERS[1], icon: ClipboardCheck, accent: "blue", desc: "Build and submit PPAP packages" },
+    { role: "customer_admin", user: USERS[3], icon: ShieldCheck, accent: "emerald", desc: "Review, approve, return and manage your team" },
+    { role: "customer_member", user: USERS[4], icon: ShieldCheck, accent: "emerald", desc: "Review submissions and leave comments" },
+  ];
+  const features = ["18 PPAP elements", "Live RPN and Cpk", "Approval workflow", "PDF and Excel export"];
   return (
-    <div className="min-h-screen text-slate-100" style={blueprint}>
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-6">
-        <header className="flex items-center justify-between py-5">
+    <div className="min-h-screen bg-slate-50">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-2.5">
-            <BrandMark px={34} />
-            <span className="text-sm font-semibold tracking-tight text-white">PPAP Manager</span>
-          </div>
-          <span className="hidden font-mono text-[11px] text-slate-400 sm:inline">AIAG-aligned · live demo</span>
-        </header>
-
-        <main className="grid flex-1 items-center gap-10 py-6 lg:grid-cols-2">
-          <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-300">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" /> Production Part Approval Process
-            </span>
-            <h1 className="mt-4 text-3xl font-bold leading-[1.1] tracking-tight text-white sm:text-[2.6rem]">
-              Run the entire PPAP,<br /><span className="text-blue-400">end to end.</span>
-            </h1>
-            <p className="mt-4 max-w-md text-base leading-relaxed text-slate-300">
-              All 18 elements, live FMEA and capability calculations, customer approval gates, and one-click warrant export — in one workspace instead of a folder of spreadsheets and email threads.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-2">
-              {chips.map((t) => (
-                <span key={t} className="rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-1.5 text-xs text-slate-300">{t}</span>
-              ))}
-            </div>
-            <div className="mt-8 grid max-w-xs grid-cols-3 gap-4 border-t border-slate-800 pt-6">
-              {stats.map(([v, l]) => (
-                <div key={l}>
-                  <p className="font-mono text-2xl font-bold text-white">{v}</p>
-                  <p className="text-xs text-slate-400">{l}</p>
-                </div>
-              ))}
+            <BrandMark px={32} />
+            <div className="leading-tight">
+              <span className="block text-sm font-semibold tracking-tight text-slate-900">PPAP Manager</span>
+              <span className="block text-[11px] text-slate-500">Quality submission platform</span>
             </div>
           </div>
+          <span className="hidden text-xs text-slate-400 sm:inline">Product demo</span>
+        </div>
+      </header>
 
-          <div className="rounded-2xl border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl backdrop-blur">
-            <h2 className="mb-1 text-sm font-semibold text-white">Launch the demo</h2>
-            <p className="mb-4 text-xs text-slate-400">Choose a role to explore. You can switch anytime.</p>
-            <div className="space-y-3">
-              <RoleButton
-                onClick={() => onLogin({ name: "Jane Operator", role: "supplier", company: "ABC Manufacturing" })}
-                icon={Factory} accent="blue" title="Enter as Supplier"
-                sub="Build & submit packages · ABC Manufacturing" />
-              <RoleButton
-                onClick={() => onLogin({ name: "Sam Reviewer", role: "customer", company: "Meridian Motors" })}
-                icon={ShieldCheck} accent="emerald" title="Enter as Customer"
-                sub="Review & approve submissions · Meridian Motors" />
-              <RoleButton
-                onClick={() => onLogin({ name: "Alex Admin", role: "admin", company: "PPAP System" })}
-                icon={Settings} accent="violet" title="Enter as Admin"
-                sub="Full access — build, review, and approve" />
-            </div>
-            <p className="mt-5 text-center font-mono text-[11px] text-slate-500">no signup · runs in your browser</p>
+      <main className="mx-auto grid max-w-6xl items-stretch gap-8 px-6 py-12 lg:grid-cols-2 lg:py-16">
+        <div className="flex flex-col justify-center rounded-2xl bg-gradient-to-br from-blue-700 to-blue-900 p-8 text-white sm:p-10">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-blue-50">
+            Production Part Approval Process
+          </span>
+          <h1 className="mt-4 text-3xl font-bold leading-[1.15] tracking-tight sm:text-4xl">
+            The quality submission platform for manufacturing teams
+          </h1>
+          <p className="mt-4 max-w-md text-base leading-relaxed text-blue-100">
+            Manage every PPAP package across suppliers and customers in one shared workspace, with built in calculations, approval workflow, and a complete audit trail.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {features.map((t) => (
+              <span key={t} className="rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-blue-50">{t}</span>
+            ))}
           </div>
-        </main>
+        </div>
 
-        <footer className="border-t border-slate-800 py-4 text-center text-xs text-slate-500">
-          PPAP Manager — product demo by <span className="text-slate-300">Your Name</span> · Not affiliated with AIAG
-        </footer>
-      </div>
+        <div className="flex flex-col justify-center rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <h2 className="text-base font-semibold text-slate-900">Sign in to the demo</h2>
+          <p className="mb-4 mt-0.5 text-xs text-slate-500">Choose a role to explore. You can switch anytime.</p>
+          <div className="space-y-2.5">
+            {roles.map(({ role, user, icon, accent, desc }) => (
+              <RoleButton key={role} icon={icon} accent={accent}
+                title={`${roleLabel(role)}`}
+                sub={`${user.name} at ${user.company}`}
+                hint={desc}
+                onClick={() => onLogin({ name: user.name, role, company: user.company, email: user.email, title: user.title })} />
+            ))}
+          </div>
+          <p className="mt-4 text-center text-[11px] text-slate-400">No signup required. Runs in your browser.</p>
+        </div>
+      </main>
+
+      <footer className="mx-auto max-w-6xl px-6 py-6 text-xs text-slate-400">
+        PPAP Manager. Product demo by Chaitanya Patwardhan. Not affiliated with AIAG.
+      </footer>
     </div>
   );
 }
-function RoleButton({ onClick, icon: Icon, accent, title, sub }) {
-  const ring = accent === "blue" ? "hover:border-blue-500 focus-visible:ring-blue-500"
-    : accent === "violet" ? "hover:border-violet-500 focus-visible:ring-violet-500"
-    : "hover:border-emerald-500 focus-visible:ring-emerald-500";
-  const ic = accent === "blue" ? "text-blue-400" : accent === "violet" ? "text-violet-400" : "text-emerald-400";
+function RoleButton({ onClick, icon: Icon, accent, title, sub, hint }) {
+  const ic = accent === "emerald" ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600";
   return (
     <button onClick={onClick}
-      className={`group flex w-full items-center justify-between rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-3 text-left transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 ${ring}`}>
-      <span className="flex items-center gap-3">
-        <Icon size={18} className={ic} />
-        <span>
-          <span className="block text-sm font-medium text-white">{title}</span>
-          <span className="block text-xs text-slate-400">{sub}</span>
-        </span>
+      className="group flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 py-3 text-left transition hover:border-blue-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${ic}`}><Icon size={18} /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-slate-900">{title}</span>
+        <span className="block truncate text-xs text-slate-500">{sub}</span>
+        {hint && <span className="mt-0.5 block truncate text-[11px] text-slate-400">{hint}</span>}
       </span>
-      <ChevronRight size={16} className="text-slate-500 transition group-hover:translate-x-0.5" />
+      <ChevronRight size={16} className="shrink-0 text-slate-300 transition group-hover:translate-x-0.5" />
     </button>
   );
 }
@@ -619,41 +580,48 @@ function RoleButton({ onClick, icon: Icon, accent, title, sub }) {
 /* ----------------------------- chrome ----------------------------- */
 function Sidebar({ user, route, setRoute, onLogout }) {
   const items = [
-    { key: "dashboard", label: user.role === "customer" ? "Review queue" : "Dashboard", icon: LayoutDashboard },
-    { key: "projects", label: "Projects", icon: FolderKanban },
+    { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { key: "projects", label: "Packages", icon: FolderKanban },
     { key: "analytics", label: "Analytics", icon: BarChart3 },
+    ...(canManageUsers(user) ? [{ key: "members", label: "Members", icon: Users }] : []),
   ];
   return (
-    <aside className="hidden w-56 shrink-0 flex-col text-slate-300 sm:flex" style={blueprint}>
-      <div className="flex items-center gap-2.5 px-5 py-5">
-        <BrandMark px={36} />
-        <div>
-          <span className="block text-sm font-semibold leading-tight tracking-tight text-white">PPAP Manager</span>
-          <span className="block font-mono text-[10px] text-slate-500">approval workspace</span>
+    <aside className="hidden w-60 shrink-0 flex-col bg-blue-800 text-blue-100 sm:flex">
+      <div className="flex items-center gap-2.5 border-b border-white/10 px-5 py-4">
+        <BrandMark px={34} variant="light" />
+        <div className="leading-tight">
+          <span className="block text-sm font-semibold tracking-tight text-white">PPAP Manager</span>
+          <span className="block text-[10px] text-blue-200/80">Quality submissions</span>
         </div>
       </div>
-      <nav className="flex-1 px-3 py-2">
+      <div className="border-b border-white/10 px-4 py-3">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-blue-300/80">{isCustomer(user) ? "Customer" : "Supplier"}</p>
+        <p className="text-sm font-medium text-white">{user.company}</p>
+      </div>
+      <nav className="flex-1 px-3 py-3">
         {items.map(({ key, label, icon: Icon }) => {
           const active = route.view === key || (key === "projects" && (route.view === "project" || route.view === "element"));
           return (
             <button key={key} onClick={() => setRoute({ view: key, projectId: null, elementId: null })}
-              className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                active ? "bg-blue-600/90 text-white" : "text-slate-300 hover:bg-slate-800/70"}`}>
-              <Icon size={17} /> {label}
+              className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
+                active ? "bg-white font-medium text-blue-800 shadow-sm" : "text-blue-100 hover:bg-white/10 hover:text-white"}`}>
+              <Icon size={17} className={active ? "text-blue-700" : "text-blue-200"} /> {label}
             </button>
           );
         })}
       </nav>
-      <div className="border-t border-slate-800 p-3">
+      <div className="border-t border-white/10 p-3">
         <div className="mb-2 flex items-center gap-2.5 px-2">
-          <Avatar name={user.name} role={user.role} size={32} />
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-xs font-semibold text-white">
+            {user.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+          </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-white">{user.name}</p>
-            <p className="truncate font-mono text-[11px] capitalize text-slate-400">{user.role} · {user.company}</p>
+            <p className="truncate text-[11px] text-blue-200/80">{roleLabel(user.role)}</p>
           </div>
         </div>
         <button onClick={onLogout}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:bg-slate-800/70 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-blue-100 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40">
           <LogOut size={16} /> Sign out
         </button>
       </div>
@@ -662,7 +630,7 @@ function Sidebar({ user, route, setRoute, onLogout }) {
 }
 
 /* ----------------------------- router ----------------------------- */
-function Content({ user, projects, setProjects, updateProject, route, setRoute }) {
+function Content({ user, projects, setProjects, updateProject, users, setUsers, route, setRoute }) {
   const project = projects.find((p) => p.id === route.projectId);
 
   if (route.view === "element" && project) {
@@ -675,19 +643,14 @@ function Content({ user, projects, setProjects, updateProject, route, setRoute }
       back={() => setRoute({ view: "projects", projectId: null, elementId: null })} />;
   }
   if (route.view === "projects") {
-    return <ProjectsList user={user} projects={projects} setProjects={setProjects}
+    return <ProjectsList user={user} projects={projects} setProjects={setProjects} updateProject={updateProject}
       open={(id) => setRoute({ view: "project", projectId: id, elementId: null })} />;
   }
-  if (route.view === "analytics") return <AnalyticsView projects={projects} />;
-  if (user.role === "admin")
-    return <AdminDashboard user={user} projects={projects} updateProject={updateProject}
-      open={(id) => setRoute({ view: "project", projectId: id, elementId: null })}
-      goProjects={() => setRoute({ view: "projects", projectId: null, elementId: null })} />;
-  return user.role === "supplier"
-    ? <SupplierDashboard user={user} projects={projects} open={(id) => setRoute({ view: "project", projectId: id, elementId: null })}
-        goProjects={() => setRoute({ view: "projects", projectId: null, elementId: null })} />
-    : <CustomerDashboard user={user} projects={projects} updateProject={updateProject}
-        open={(id) => setRoute({ view: "project", projectId: id, elementId: null })} />;
+  if (route.view === "analytics") return <AnalyticsView projects={projects} users={users} />;
+  if (route.view === "members") return <Members user={user} users={users} setUsers={setUsers} />;
+  return <Dashboard user={user} projects={projects} updateProject={updateProject}
+    open={(id) => setRoute({ view: "project", projectId: id, elementId: null })}
+    goProjects={() => setRoute({ view: "projects", projectId: null, elementId: null })} />;
 }
 
 /* --------------------------- helpers --------------------------- */
@@ -697,188 +660,333 @@ function progressOf(project) {
   const done = reqIds.filter((e) => project.elements[e.id].status === "completed").length;
   return { done, total: reqIds.length, pct: Math.round((done / reqIds.length) * 100) };
 }
+function latestFile(project) {
+  let best = null;
+  ELEMENTS.forEach((e) => {
+    (project.elements[e.id]?.data?.files || []).forEach((f) => {
+      if (!best || (f.at || "") >= (best.at || "")) best = { ...f, element: e.name };
+    });
+  });
+  return best;
+}
+function lastUpdated(project) {
+  return project.activity && project.activity.length ? project.activity[0].t : null;
+}
+const STATUS_FLOW = [
+  { key: "draft", label: "Draft" },
+  { key: "submitted", label: "Awaiting Approval" },
+  { key: "rejected", label: "Returned" },
+  { key: "approved", label: "Approved" },
+];
 
 /* --------------------------- dashboards --------------------------- */
-function SupplierDashboard({ user, projects, open, goProjects }) {
-  const mine = projects;
-  const totals = mine.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc; }, {});
-  const avg = mine.length ? Math.round(mine.reduce((s, p) => s + progressOf(p).pct, 0) / mine.length) : 0;
+function Dashboard({ user, projects, updateProject, open, goProjects }) {
   const first = user.name.split(" ")[0];
+  const totals = projects.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc; }, {});
+  const overdue = projects.filter((p) => p.status !== "approved" && daysUntil(p.due) < 0).length;
+  const queue = projects.filter((p) => p.submission && p.submission.status === "pending");
+  const upcoming = projects.filter((p) => p.status !== "approved" && p.due).sort((a, b) => new Date(a.due) - new Date(b.due)).slice(0, 5);
+  const recent = [...projects].sort((a, b) => (lastUpdated(b) || "").localeCompare(lastUpdated(a) || "")).slice(0, 5);
+  const feed = [];
+  projects.forEach((p) => (p.activity || []).forEach((a) => feed.push({ ...a, project: p.name, id: p.id })));
+  feed.sort((a, b) => (b.t || "").localeCompare(a.t || ""));
+  const cust = isCustomer(user);
+
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <h1 className="mb-1 text-xl font-semibold text-slate-900">Welcome back, {first}</h1>
-      <p className="mb-6 text-sm text-slate-500">Your PPAP packages at a glance.</p>
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Active projects" value={mine.length} icon={FolderKanban} accent="blue" />
-        <Stat label="Awaiting review" value={totals.submitted || 0} accent="amber" icon={Clock} />
-        <Stat label="Approved" value={totals.approved || 0} accent="emerald" icon={CheckCircle2} />
-        <Stat label="Avg. completion" value={`${avg}%`} icon={BarChart3} accent="blue" />
+      <p className="mb-6 text-sm text-slate-500">{user.company} - {roleLabel(user.role)}</p>
+
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <Stat label="Total Packages" value={projects.length} accent="blue" />
+        <Stat label="Draft" value={totals.draft || 0} />
+        <Stat label="Awaiting Approval" value={totals.submitted || 0} accent="amber" />
+        <Stat label="Returned" value={totals.rejected || 0} />
+        <Stat label="Approved" value={totals.approved || 0} accent="emerald" />
+        <Stat label="Overdue" value={overdue} accent={overdue > 0 ? "amber" : undefined} />
       </div>
-      {totals.rejected > 0 && (
-        <div className="mb-6 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          <AlertTriangle size={16} /> {totals.rejected} package{totals.rejected === 1 ? " was" : "s were"} returned and need{totals.rejected === 1 ? "s" : ""} your attention.
+
+      <div className="mb-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Bell size={15} className="text-amber-500" /> Approval Queue</h2>
+          <span className="text-xs text-slate-400">{queue.length} awaiting approval</span>
         </div>
-      )}
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-700">Recent projects</h2>
-        <button onClick={goProjects} className="text-sm text-blue-600 hover:underline">View all →</button>
+        {queue.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-400">Nothing is awaiting approval right now.</div>
+        ) : cust ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {queue.map((p) => <ReviewCard key={p.id} project={p} user={user} updateProject={updateProject} open={() => open(p.id)} />)}
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {queue.map((p) => (
+              <button key={p.id} onClick={() => open(p.id)} className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50">
+                <span><span className="text-sm font-medium text-slate-800">{p.name}</span> <span className="font-mono text-xs text-slate-400">{p.partNumber}</span></span>
+                <span className="flex items-center gap-2 text-xs text-slate-500">Awaiting {p.customer} <ChevronRight size={14} /></span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <div className="space-y-2.5">
-        {mine.slice(0, 4).map((p) => <ProjectRow key={p.id} project={p} onClick={() => open(p.id)} />)}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div>
+          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Clock size={15} className="text-slate-400" /> Upcoming Due Dates</h2>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {upcoming.length === 0 ? <p className="px-4 py-6 text-center text-sm text-slate-400">Nothing scheduled.</p> : upcoming.map((p) => {
+              const d = daysUntil(p.due);
+              return (
+                <button key={p.id} onClick={() => open(p.id)} className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-2.5 text-left last:border-0 hover:bg-slate-50">
+                  <span><span className="text-sm text-slate-700">{p.name}</span> <span className="font-mono text-xs text-slate-400">{p.partNumber}</span></span>
+                  <span className={`text-xs ${d < 0 ? "font-medium text-rose-600" : d <= 3 ? "text-amber-600" : "text-slate-500"}`}>{d < 0 ? `${-d}d overdue` : `Due in ${d}d`}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <h2 className="mb-3 mt-6 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><FolderKanban size={15} className="text-slate-400" /> Recently Updated</h2>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {recent.map((p) => {
+              const pr = progressOf(p);
+              return (
+                <button key={p.id} onClick={() => open(p.id)} className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-2.5 text-left last:border-0 hover:bg-slate-50">
+                  <span className="min-w-0"><span className="text-sm text-slate-700">{p.name}</span> <span className="font-mono text-xs text-slate-400">{lastUpdated(p)}</span></span>
+                  <span className="flex items-center gap-2"><span className="font-mono text-xs text-slate-400">{pr.pct}%</span><StatusPill status={p.status} /></span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Zap size={15} className="text-slate-400" /> Recent Activity</h2>
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <ol className="space-y-3">
+              {feed.slice(0, 9).map((a, i) => (
+                <li key={i} className="flex gap-3 text-sm">
+                  <span className="w-16 shrink-0 font-mono text-xs text-slate-400">{a.t}</span>
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
+                  <span className="text-slate-600"><span className="font-medium text-slate-700">{a.project}</span>: {a.text}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function AnalyticsView({ projects }) {
-  const statusOrder = [["draft", "Draft", "bg-slate-400"], ["submitted", "Awaiting review", "bg-amber-400"], ["approved", "Approved", "bg-emerald-500"], ["rejected", "Returned", "bg-rose-500"]];
+const CHART_BLUE = "#2563eb";
+const STATUS_COLORS = { draft: "#94a3b8", submitted: "#f59e0b", rejected: "#ef4444", approved: "#10b981" };
+
+function AnalyticsView({ projects, users }) {
   const counts = projects.reduce((a, p) => { a[p.status] = (a[p.status] || 0) + 1; return a; }, {});
-  const maxCount = Math.max(1, ...statusOrder.map(([k]) => counts[k] || 0));
+  const statusData = STATUS_FLOW.map((s) => ({ name: s.label, key: s.key, value: counts[s.key] || 0 }));
 
-  // overall element completion across all projects (required only)
-  let reqTotal = 0, reqDone = 0;
+  // cycle time: days from submit to approve, from activity dates
+  const cycleRows = [];
   projects.forEach((p) => {
-    const req = requiredFor(p.level);
-    ELEMENTS.forEach((e) => { if (req.has(e.id)) { reqTotal++; if (p.elements[e.id].status === "completed") reqDone++; } });
+    const sub = (p.activity || []).find((a) => /Submitted/.test(a.text));
+    const app = (p.activity || []).find((a) => /Approved/.test(a.text));
+    if (sub && app) { const days = Math.max(1, Math.round((new Date(sub.t) - new Date(app.t)) / 86400000)); cycleRows.push({ project: p.name, days }); }
   });
-  const completionPct = reqTotal ? Math.round((reqDone / reqTotal) * 100) : 0;
+  const avgCycle = cycleRows.length ? Math.round(cycleRows.reduce((s, r) => s + r.days, 0) / cycleRows.length) : 0;
 
-  // top FMEA risks across all projects
-  const risks = [];
-  projects.forEach((p) => ["design_fmea", "process_fmea"].forEach((id) => {
-    (p.elements[id]?.data?.rows || []).forEach((r) => risks.push({ rpn: r.sev * r.occ * r.det, item: r.item || "—", mode: r.mode || "—", project: p.name }));
-  }));
-  risks.sort((a, b) => b.rpn - a.rpn);
-  const topRisks = risks.slice(0, 5);
+  // demo monthly series (approvals + cycle time) for a realistic trend
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+  const monthly = months.map((m, i) => ({ month: m, approvals: [3, 4, 5, 4, 6, (counts.approved || 0) + 4][i], cycle: [9, 8, 7, 7, 6, Math.max(5, avgCycle || 6)][i] }));
 
-  // capability summary
-  const caps = [];
-  projects.forEach((p) => {
-    const d = p.elements.initial_sample_inspection?.data;
-    if (d?.usl) { const usl = +d.usl, lsl = +d.lsl, mean = +d.mean, sd = +d.sd; if (sd > 0) caps.push({ project: p.name, cpk: Math.min((usl - mean) / (3 * sd), (mean - lsl) / (3 * sd)) }); }
-  });
+  const supplierPerf = [
+    { name: SUPPLIER_CO, onTime: 92, approvals: (counts.approved || 0) + 6 },
+    { name: "Forge Industrial", onTime: 84, approvals: 7 },
+    { name: "Delta Precision", onTime: 78, approvals: 5 },
+    { name: "Nova Castings", onTime: 70, approvals: 3 },
+  ];
+
+  const completionTrend = months.map((m, i) => ({ month: m, completion: [62, 68, 71, 75, 79, 83][i] }));
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <h1 className="mb-1 text-xl font-semibold text-slate-900">Analytics</h1>
-      <p className="mb-6 text-sm text-slate-500">Roll-up across all {projects.length} project{projects.length === 1 ? "" : "s"} in this workspace.</p>
+      <p className="mb-6 text-sm text-slate-500">Performance across all packages, suppliers, and customers.</p>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Avg. Cycle Time" value={`${avgCycle || 7}d`} accent="blue" />
+        <Stat label="Approval Rate" value={`${Math.round(((counts.approved || 0) / Math.max(1, projects.length)) * 100)}%`} accent="emerald" />
+        <Stat label="Returned" value={counts.rejected || 0} accent="amber" />
+        <Stat label="Overdue" value={projects.filter((p) => p.status !== "approved" && daysUntil(p.due) < 0).length} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Packages by Status">
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                {statusData.map((d) => <Cell key={d.key} fill={STATUS_COLORS[d.key]} />)}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="Monthly Approvals">
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={monthly}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="approvals" fill={CHART_BLUE} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="Approval Cycle Time (days)">
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={monthly}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip />
+              <Line type="monotone" dataKey="cycle" stroke={CHART_BLUE} strokeWidth={2.5} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="Supplier Performance (on-time %)">
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={supplierPerf} layout="vertical" margin={{ left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
+              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+              <Tooltip />
+              <Bar dataKey="onTime" fill={CHART_BLUE} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Projects by status</h2>
-          <div className="space-y-3">
-            {statusOrder.map(([k, label, color]) => (
-              <div key={k} className="flex items-center gap-3">
-                <span className="w-28 shrink-0 text-xs text-slate-500">{label}</span>
-                <div className="h-4 flex-1 overflow-hidden rounded bg-slate-100">
-                  <div className={`h-full ${color}`} style={{ width: `${((counts[k] || 0) / maxCount) * 100}%` }} />
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">Top Suppliers</h3>
+          <table className="w-full text-sm">
+            <thead><tr className="text-left text-xs uppercase tracking-wide text-slate-400"><th className="py-1.5">Supplier</th><th className="py-1.5">On-time</th><th className="py-1.5">Approved</th></tr></thead>
+            <tbody>
+              {supplierPerf.map((s) => (
+                <tr key={s.name} className="border-t border-slate-100"><td className="py-2 text-slate-700">{s.name}</td><td className="py-2 text-slate-600">{s.onTime}%</td><td className="py-2 text-slate-600">{s.approvals}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">Recently Approved</h3>
+          {projects.filter((p) => p.status === "approved").length === 0 ? <p className="text-sm text-slate-400">None yet.</p> : (
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-xs uppercase tracking-wide text-slate-400"><th className="py-1.5">Package</th><th className="py-1.5">Part</th><th className="py-1.5">Approved by</th></tr></thead>
+              <tbody>
+                {projects.filter((p) => p.status === "approved").map((p) => (
+                  <tr key={p.id} className="border-t border-slate-100"><td className="py-2 text-slate-700">{p.name}</td><td className="py-2 font-mono text-xs text-slate-500">{p.partNumber}</td><td className="py-2 text-slate-600">{p.submission?.by || p.customer}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+function ChartCard({ title, children }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
+      <h3 className="mb-3 text-sm font-semibold text-slate-700">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+function Members({ user, users, setUsers }) {
+  const canManage = canManageUsers(user);
+  const [inviting, setInviting] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", company: user.company, role: isCustomer(user) ? "customer_member" : "supplier_member" });
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const valid = form.name.trim() && /\S+@\S+\.\S+/.test(form.email);
+  const invite = () => {
+    setUsers((us) => [...us, { id: Date.now(), name: form.name.trim(), email: form.email.trim(), company: form.company, role: form.role, title: "Invited member" }]);
+    toast(`Invitation sent to ${form.name.trim()}`);
+    setForm({ name: "", email: "", company: user.company, role: isCustomer(user) ? "customer_member" : "supplier_member" });
+    setInviting(false);
+  };
+  const orgs = [SUPPLIER_CO, CUSTOMER_CO];
+  return (
+    <div className="mx-auto max-w-4xl">
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">Members</h1>
+          <p className="mt-0.5 text-sm text-slate-500">{users.length} people across {SUPPLIER_CO} and {CUSTOMER_CO}</p>
+        </div>
+        {canManage && (
+          <button onClick={() => setInviting(true)} className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            <UserPlus size={16} /> Invite member
+          </button>
+        )}
+      </div>
+
+      {inviting && (
+        <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-4 text-sm font-semibold text-slate-700">Invite a member</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <LabeledInput label="Name" value={form.name} onChange={set("name")} placeholder="Full name" />
+            <LabeledInput label="Email" value={form.email} onChange={set("email")} placeholder="name@company.com" />
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Company</span>
+              <select value={form.company} onChange={set("company")} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                {orgs.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Role</span>
+              <select value={form.role} onChange={set("role")} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                {Object.keys(ROLES).map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button onClick={() => valid && invite()} disabled={!valid} className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"><Mail size={15} /> Send invitation</button>
+            <button onClick={() => setInviting(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {orgs.map((org) => (
+        <div key={org} className="mb-6">
+          <h2 className="mb-2 text-sm font-semibold text-slate-700">{org}</h2>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {users.filter((u) => u.company === org).map((u) => (
+              <div key={u.id} className="flex items-center justify-between border-b border-slate-100 px-4 py-3 last:border-0">
+                <div className="flex items-center gap-3">
+                  <Avatar name={u.name} role={u.role} size={32} />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{u.name}</p>
+                    <p className="text-xs text-slate-400">{u.email}</p>
+                  </div>
                 </div>
-                <span className="w-6 text-right font-mono text-sm text-slate-700">{counts[k] || 0}</span>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${roleOrg(u.role) === "customer" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>{roleLabel(u.role)}</span>
               </div>
             ))}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-2 text-sm font-semibold text-slate-700">Overall element completion</h2>
-          <p className="mb-3 font-mono text-3xl font-semibold text-slate-900">{completionPct}%</p>
-          <ProgressBar pct={completionPct} />
-          <p className="mt-2 text-xs text-slate-500">{reqDone} of {reqTotal} required elements complete across all packages.</p>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><AlertTriangle size={15} className="text-amber-500" /> Highest FMEA risks</h2>
-          {topRisks.length === 0 ? <p className="text-sm text-slate-400">No FMEA data yet.</p> : (
-            <ol className="space-y-2">
-              {topRisks.map((r, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="min-w-0 truncate text-slate-600">{r.item} — <span className="text-slate-400">{r.mode}</span></span>
-                  <span className={`shrink-0 rounded px-2 py-0.5 font-mono text-xs font-semibold ${r.rpn >= 200 ? "bg-rose-100 text-rose-700" : r.rpn >= 100 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>{r.rpn}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Gauge size={15} className="text-blue-500" /> Process capability (Cpk)</h2>
-          {caps.length === 0 ? <p className="text-sm text-slate-400">No capability studies yet.</p> : (
-            <ul className="space-y-2">
-              {caps.map((c, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="min-w-0 truncate text-slate-600">{c.project}</span>
-                  <span className={`shrink-0 rounded px-2 py-0.5 font-mono text-xs font-semibold ${c.cpk >= 1.33 ? "bg-emerald-100 text-emerald-700" : c.cpk >= 1.0 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"}`}>{c.cpk.toFixed(2)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
+      ))}
     </div>
   );
 }
 
-function AdminDashboard({ user, projects, updateProject, open, goProjects }) {
-  const pending = projects.filter((p) => p.submission && p.submission.status === "pending");
-  const totals = projects.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc; }, {});
-  const avg = projects.length ? Math.round(projects.reduce((s, p) => s + progressOf(p).pct, 0) / projects.length) : 0;
-  return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="mb-1 text-xl font-semibold text-slate-900">Admin overview</h1>
-      <p className="mb-6 text-sm text-slate-500">Full access — you can build, review, and approve.</p>
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Projects" value={projects.length} icon={FolderKanban} accent="blue" />
-        <Stat label="Awaiting review" value={totals.submitted || 0} accent="amber" icon={Clock} />
-        <Stat label="Approved" value={totals.approved || 0} accent="emerald" icon={CheckCircle2} />
-        <Stat label="Avg. completion" value={`${avg}%`} icon={BarChart3} accent="blue" />
-      </div>
-      {pending.length > 0 && (
-        <>
-          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Bell size={15} className="text-amber-500" /> Awaiting your review</h2>
-          <div className="mb-6 space-y-4">
-            {pending.map((p) => <ReviewCard key={p.id} project={p} updateProject={updateProject} open={() => open(p.id)} />)}
-          </div>
-        </>
-      )}
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-700">All projects</h2>
-        <button onClick={goProjects} className="text-sm text-blue-600 hover:underline">View all →</button>
-      </div>
-      <div className="space-y-2.5">{projects.map((p) => <ProjectRow key={p.id} project={p} onClick={() => open(p.id)} />)}</div>
-    </div>
-  );
-}
-
-function CustomerDashboard({ user, projects, updateProject, open }) {
-  const pending = projects.filter((p) => p.submission && p.submission.status === "pending");
-  const approved = projects.filter((p) => p.status === "approved").length;
-  const first = user.name.split(" ")[0];
-  return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="mb-1 text-xl font-semibold text-slate-900">Welcome back, {first}</h1>
-      <p className="mb-6 text-sm text-slate-500">Submissions awaiting your engineering approval.</p>
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Stat label="In your queue" value={pending.length} accent="amber" icon={Bell} />
-        <Stat label="Approved" value={approved} accent="emerald" icon={CheckCircle2} />
-        <Stat label="Total packages" value={projects.length} icon={FolderKanban} accent="blue" />
-      </div>
-      {pending.length === 0 ? (
-        <EmptyState icon={ShieldCheck} title="Nothing to review"
-          body="When a supplier submits a package, it appears here for approval. Sign in as Supplier to create and submit one." />
-      ) : (
-        <div className="space-y-4">
-          {pending.map((p) => <ReviewCard key={p.id} project={p} updateProject={updateProject} open={() => open(p.id)} />)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ReviewCard({ project, updateProject, open }) {
+function ReviewCard({ project, updateProject, open, user }) {
   const [comments, setComments] = useState("");
   const p = progressOf(project);
+  const by = user ? user.name : "Customer";
   const decide = (status) => {
-    updateProject(project.id, (pr) => withEvent({ ...pr, status, submission: { ...pr.submission, status, comments } }, status === "approved" ? "Approved by customer" : "Returned for changes"));
+    updateProject(project.id, (pr) => withEvent({ ...pr, status, submission: { ...pr.submission, status, comments, by }, }, status === "approved" ? `Approved by ${by}` : `Returned for changes by ${by}`));
     toast(status === "approved" ? "Package approved" : "Returned to supplier", status === "approved" ? "success" : "info");
   };
   return (
@@ -892,11 +1000,11 @@ function ReviewCard({ project, updateProject, open }) {
       </div>
       <div className="mb-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
         <span className="font-mono">{p.done}/{p.total}</span> required elements complete · Submission Level {project.level}
-        <button onClick={open} className="ml-2 text-blue-600 hover:underline">View package →</button>
+        <button onClick={open} className="ml-2 text-blue-600 hover:underline">View package</button>
       </div>
       <label className="mb-1 block text-xs font-medium text-slate-600">Review comments</label>
       <textarea value={comments} onChange={(e) => setComments(e.target.value)} rows={2}
-        placeholder="Notes for the supplier (required to return the package)…"
+        placeholder="Notes for the supplier (required to return the package)"
         className="mb-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
       <div className="flex gap-2">
         <button onClick={() => decide("approved")}
@@ -914,11 +1022,12 @@ function ReviewCard({ project, updateProject, open }) {
 }
 
 /* --------------------------- projects list --------------------------- */
-function ProjectsList({ user, projects, setProjects, open }) {
+function ProjectsList({ user, projects, setProjects, updateProject, open }) {
   const [creating, setCreating] = useState(false);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
-  const isSupplier = user.role === "supplier" || user.role === "admin";
+  const [view, setView] = useState("table");
+  const canBuild = isSupplier(user);
 
   const create = (form) => {
     const proj = {
@@ -926,71 +1035,227 @@ function ProjectsList({ user, projects, setProjects, open }) {
       name: form.name,
       partNumber: form.partNumber,
       partName: form.partName,
-      customer: form.customer,
+      customer: form.customer || CUSTOMER_CO,
       supplier: user.company,
       revision: form.revision || "A",
       level: Number(form.level) || 3,
       status: "draft",
       submission: null,
+      owner: user.name,
       elements: blankElements(),
       due: dueIn(30),
-      activity: [evt("Project created")],
+      activity: [evt(`Created by ${user.name}`)],
     };
     setProjects((ps) => [proj, ...ps]);
     setCreating(false);
-    toast("Project created");
+    toast("Package created");
     open(proj.id);
   };
 
   const del = async (id) => {
-    if (await confirmDialog({ title: "Delete project?", body: "This permanently removes the package. This can't be undone.", confirmLabel: "Delete", danger: true })) {
+    if (await confirmDialog({ title: "Delete PPAP package", body: "Are you sure you want to delete this PPAP package?", confirmLabel: "Delete", danger: true })) {
       setProjects((ps) => ps.filter((p) => p.id !== id));
-      toast("Project deleted", "info");
+      toast("Package deleted", "info");
     }
+  };
+
+  const submit = (p) => { updateProject(p.id, (pr) => withEvent({ ...pr, status: "submitted", submission: { status: "pending", comments: "" } }, "Submitted for approval")); toast("Submitted to customer"); };
+  const moveStatus = (id, status) => {
+    updateProject(id, (pr) => withEvent({
+      ...pr, status,
+      submission: status === "submitted" ? { status: "pending", comments: "" } : status === "approved" ? { ...(pr.submission || {}), status: "approved" } : status === "rejected" ? { ...(pr.submission || {}), status: "rejected" } : null,
+    }, `Moved to ${STATUS_FLOW.find((s) => s.key === status)?.label || status}`));
   };
 
   const term = q.trim().toLowerCase();
   const shown = projects.filter((p) => {
-    const matchQ = !term || [p.name, p.partNumber, p.partName, p.customer].some((v) => v.toLowerCase().includes(term));
+    const matchQ = !term || [p.name, p.partNumber, p.partName, p.customer, p.owner].some((v) => (v || "").toLowerCase().includes(term));
     const matchF = filter === "all" || p.status === filter;
     return matchQ && matchF;
   });
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Projects</h1>
-          <p className="mt-0.5 text-sm text-slate-500">{projects.length} package{projects.length === 1 ? "" : "s"}</p>
+          <h1 className="text-xl font-semibold text-slate-900">Packages</h1>
+          <p className="mt-0.5 text-sm text-slate-500">{projects.length} package{projects.length === 1 ? "" : "s"} across {SUPPLIER_CO} and {CUSTOMER_CO}</p>
         </div>
-        {isSupplier && (
+        {canBuild && (
           <button onClick={() => setCreating(true)}
             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-            <Plus size={16} /> New project
+            <Plus size={16} /> New package
           </button>
         )}
       </div>
       {creating && <CreateProject onCreate={create} onCancel={() => setCreating(false)} />}
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, part number, or customer…"
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, part number, customer, or owner"
           className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
         <select value={filter} onChange={(e) => setFilter(e.target.value)}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
           <option value="all">All statuses</option>
           <option value="draft">Draft</option>
-          <option value="submitted">Awaiting review</option>
-          <option value="approved">Approved</option>
+          <option value="submitted">Awaiting Approval</option>
           <option value="rejected">Returned</option>
+          <option value="approved">Approved</option>
         </select>
+        <div className="flex rounded-lg border border-slate-300 p-0.5">
+          <button onClick={() => setView("table")} className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition ${view === "table" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}>
+            <Table2 size={15} /> Table
+          </button>
+          <button onClick={() => setView("board")} className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition ${view === "board" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}>
+            <FolderKanban size={15} /> Board
+          </button>
+        </div>
       </div>
-      <div className="space-y-2.5">
-        {shown.map((p) => <ProjectRow key={p.id} project={p} onClick={() => open(p.id)} onDelete={isSupplier ? () => del(p.id) : null} />)}
-        {projects.length === 0 ? (
-          <EmptyState icon={FolderKanban} title="No projects yet" body="Create your first PPAP package to get started." />
-        ) : shown.length === 0 ? (
-          <EmptyState icon={FolderKanban} title="No matches" body="No projects match your search or filter." />
-        ) : null}
-      </div>
+
+      {shown.length === 0 ? (
+        projects.length === 0
+          ? <EmptyState icon={FolderKanban} title="No packages yet" body="Create your first PPAP package to get started." />
+          : <EmptyState icon={FolderKanban} title="No matches" body="No packages match your search or filter." />
+      ) : view === "table" ? (
+        <PackagesTable rows={shown} user={user} canBuild={canBuild} open={open} submit={submit} del={del} />
+      ) : (
+        <PipelineBoard rows={shown} user={user} open={open} moveStatus={moveStatus} />
+      )}
+    </div>
+  );
+}
+
+function PackagesTable({ rows, user, canBuild, open, submit, del }) {
+  const [menu, setMenu] = useState(null);
+  const head = ["Package", "Part No.", "Rev", "Customer", "Status", "Complete", "Latest File", "Due", "Owner", "Updated", ""];
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+            {head.map((h) => <th key={h} className="whitespace-nowrap px-3 py-2.5">{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => {
+            const pr = progressOf(p);
+            const f = latestFile(p);
+            const lu = lastUpdated(p);
+            const overdue = p.status !== "approved" && daysUntil(p.due) < 0;
+            return (
+              <tr key={p.id} className="border-b border-slate-100 transition hover:bg-slate-50">
+                <td className="px-3 py-2.5">
+                  <button onClick={() => open(p.id)} className="text-left font-medium text-slate-800 hover:text-blue-700">{p.name}</button>
+                  <div className="text-xs text-slate-400">{p.partName}</div>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-slate-600">{p.partNumber}</td>
+                <td className="px-3 py-2.5 text-slate-600">{p.revision}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">{p.customer}</td>
+                <td className="px-3 py-2.5"><StatusPill status={p.status} /></td>
+                <td className="px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-600" style={{ width: `${pr.pct}%` }} /></div>
+                    <span className="font-mono text-xs text-slate-500">{pr.pct}%</span>
+                  </div>
+                </td>
+                <td className="px-3 py-2.5">
+                  {f ? <span className="font-mono text-xs text-slate-600">{f.name}{f.version ? ` v${f.version}` : ""}</span> : <span className="text-xs text-slate-300">None</span>}
+                </td>
+                <td className={`whitespace-nowrap px-3 py-2.5 text-xs ${overdue ? "font-medium text-rose-600" : "text-slate-600"}`}>{p.due}{overdue ? " (overdue)" : ""}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">{p.owner}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-xs text-slate-400">{lu || "-"}</td>
+                <td className="relative px-3 py-2.5 text-right">
+                  <button onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                    <MoreVertical size={16} />
+                  </button>
+                  {menu === p.id && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setMenu(null)} />
+                      <div className="absolute right-2 z-40 mt-1 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-left shadow-xl">
+                        <RowAction label="View" onClick={() => { setMenu(null); open(p.id); }} />
+                        {canBuild && <RowAction label="Edit" onClick={() => { setMenu(null); open(p.id); }} />}
+                        {canBuild && p.status === "draft" && <RowAction label="Submit" onClick={() => { setMenu(null); submit(p); }} />}
+                        <RowAction label="Export PDF" onClick={() => { setMenu(null); exportPackage(p); }} />
+                        <RowAction label="Export Excel" onClick={() => { setMenu(null); exportCSV(p); }} />
+                        {canBuild && <RowAction label="Delete" danger onClick={() => { setMenu(null); del(p.id); }} />}
+                      </div>
+                    </>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+function RowAction({ label, onClick, danger }) {
+  return (
+    <button onClick={onClick}
+      className={`block w-full px-3 py-1.5 text-left text-sm transition hover:bg-slate-50 ${danger ? "text-rose-600" : "text-slate-700"}`}>{label}</button>
+  );
+}
+
+function PipelineBoard({ rows, user, open, moveStatus }) {
+  const [dragId, setDragId] = useState(null);
+  const [over, setOver] = useState(null);
+  const cols = STATUS_FLOW;
+
+  const allowed = (status) => {
+    if (isCustomer(user)) return status === "approved" || status === "rejected";
+    return status === "draft" || status === "submitted"; // supplier can draft/submit
+  };
+  const onDrop = (status) => {
+    setOver(null);
+    const p = rows.find((r) => r.id === dragId);
+    setDragId(null);
+    if (!p || p.status === status) return;
+    if (!allowed(status)) { toast(`You cannot move a package to ${STATUS_FLOW.find((s) => s.key === status)?.label}`, "error"); return; }
+    moveStatus(p.id, status);
+    toast(`Moved to ${STATUS_FLOW.find((s) => s.key === status)?.label}`);
+  };
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-4">
+      {cols.map((col) => {
+        const items = rows.filter((r) => r.status === col.key);
+        return (
+          <div key={col.key}
+            onDragOver={(e) => { e.preventDefault(); setOver(col.key); }}
+            onDragLeave={() => setOver((o) => (o === col.key ? null : o))}
+            onDrop={() => onDrop(col.key)}
+            className={`rounded-xl border bg-slate-50 p-2.5 transition ${over === col.key ? "border-blue-400 bg-blue-50" : "border-slate-200"}`}>
+            <div className="mb-2 flex items-center justify-between px-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{col.label}</span>
+              <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-500">{items.length}</span>
+            </div>
+            <div className="space-y-2">
+              {items.map((p) => {
+                const pr = progressOf(p);
+                const overdue = p.status !== "approved" && daysUntil(p.due) < 0;
+                return (
+                  <div key={p.id} draggable
+                    onDragStart={() => setDragId(p.id)}
+                    onDragEnd={() => { setDragId(null); setOver(null); }}
+                    onClick={() => open(p.id)}
+                    className="group cursor-pointer rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-300 hover:shadow active:cursor-grabbing">
+                    <p className="text-sm font-medium text-slate-800">{p.name}</p>
+                    <p className="font-mono text-[11px] text-slate-400">{p.partNumber} · {p.customer}</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-600" style={{ width: `${pr.pct}%` }} /></div>
+                      <span className="font-mono text-[11px] text-slate-500">{pr.pct}%</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-[11px]">
+                      <span className={overdue ? "font-medium text-rose-600" : "text-slate-400"}>{overdue ? "Overdue" : `Due ${p.due}`}</span>
+                      <span className="flex items-center gap-1 text-slate-500"><Avatar name={p.owner || "?"} role={isCustomer(user) ? "customer_member" : "supplier_member"} size={16} /> {(p.owner || "").split(" ")[0]}</span>
+                    </div>
+                  </div>
+                );
+              })}
+              {items.length === 0 && <p className="px-1 py-4 text-center text-xs text-slate-300">Empty</p>}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1019,7 +1284,7 @@ function CreateProject({ onCreate, onCancel }) {
       <div className="mt-4 flex gap-2">
         <button onClick={() => valid && onCreate(form)} disabled={!valid}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40">
-          Create project
+          Create package
         </button>
         <button onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
       </div>
@@ -1033,7 +1298,7 @@ function ProjectEditForm({ project, onSave, onCancel }) {
   const valid = form.name && form.partNumber && form.partName && form.customer;
   return (
     <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-4 text-sm font-semibold text-slate-700">Edit project details</h2>
+      <h2 className="mb-4 text-sm font-semibold text-slate-700">Edit package details</h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <LabeledInput label="Project name" value={form.name} onChange={set("name")} />
         <LabeledInput label="Customer" value={form.customer} onChange={set("customer")} />
@@ -1051,8 +1316,9 @@ function ProjectEditForm({ project, onSave, onCancel }) {
 
 function ProjectRow({ project, onClick, onDelete }) {
   const p = progressOf(project);
+  const lu = lastUpdated(project);
   return (
-    <div className="group rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-blue-300 hover:shadow">
+    <div className="group relative rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-blue-300 hover:shadow">
       <button onClick={onClick}
         className="block w-full rounded-t-xl p-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
         <div className="mb-3 flex items-start justify-between">
@@ -1065,7 +1331,7 @@ function ProjectRow({ project, onClick, onDelete }) {
         <ProgressBar pct={p.pct} />
         <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
           <span className="flex items-center gap-2">
-            <span className="font-mono">{p.done}/{p.total} required · Level {project.level}</span>
+            <span className="font-mono">{p.done}/{p.total} required · {project.owner || "Unassigned"}</span>
             {project.due && project.status !== "approved" && (() => {
               const d = daysUntil(project.due);
               const cls = d < 0 ? "bg-rose-100 text-rose-700" : d <= 3 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500";
@@ -1082,6 +1348,12 @@ function ProjectRow({ project, onClick, onDelete }) {
           </button>
         </div>
       )}
+      <div className="pointer-events-none absolute right-3 top-3 z-20 hidden w-56 rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-xl group-hover:block">
+        <div className="mb-1 flex items-center justify-between"><span className="text-slate-400">Status</span><StatusPill status={project.status} /></div>
+        <div className="flex items-center justify-between"><span className="text-slate-400">Completion</span><span className="font-medium text-slate-700">{p.pct}%</span></div>
+        <div className="flex items-center justify-between"><span className="text-slate-400">Last updated</span><span className="text-slate-700">{lu || "-"}</span></div>
+        <p className="mt-1.5 border-t border-slate-100 pt-1.5 text-center text-blue-600">Click to open</p>
+      </div>
     </div>
   );
 }
@@ -1091,46 +1363,56 @@ function ProjectView({ user, project, updateProject, openElement, back }) {
   const req = requiredFor(project.level);
   const p = progressOf(project);
   const allDone = p.done === p.total;
-  const supplierLike = user.role === "supplier" || user.role === "admin";
-  const customerLike = user.role === "customer" || user.role === "admin";
+  const supplierLike = isSupplier(user);
+  const customerLike = isCustomer(user);
   const locked = project.status === "submitted" || project.status === "approved";
   const [reviewNote, setReviewNote] = useState("");
   const [editing, setEditing] = useState(false);
-  const saveEdits = (form) => { updateProject(project.id, (pr) => withEvent({ ...pr, ...form }, "Project details updated")); setEditing(false); toast("Project details updated"); };
+  const saveEdits = (form) => { updateProject(project.id, (pr) => withEvent({ ...pr, ...form }, "Package details updated")); setEditing(false); toast("Package details updated"); };
 
   const submit = () => { updateProject(project.id, (pr) => withEvent({ ...pr, status: "submitted", submission: { status: "pending", comments: "" } }, "Submitted to customer")); toast("Submitted to customer"); };
-  const decide = (status) => { updateProject(project.id, (pr) => withEvent({ ...pr, status, submission: { ...(pr.submission || {}), status, comments: reviewNote } }, status === "approved" ? "Approved by customer" : "Returned for changes")); toast(status === "approved" ? "Package approved" : "Returned to supplier", status === "approved" ? "success" : "info"); };
+  const decide = (status) => { updateProject(project.id, (pr) => withEvent({ ...pr, status, submission: { ...(pr.submission || {}), status, comments: reviewNote, by: user.name } }, status === "approved" ? `Approved by ${user.name}` : `Returned for changes by ${user.name}`)); toast(status === "approved" ? "Package approved" : "Returned to supplier", status === "approved" ? "success" : "info"); };
   const reopen = () => { updateProject(project.id, (pr) => withEvent({ ...pr, status: "draft" }, "Reopened for edits")); toast("Reopened for edits", "info"); };
 
   return (
     <div className="mx-auto max-w-5xl">
       <button onClick={back} className="mb-4 flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800">
-        <ArrowLeft size={15} /> All projects
+        <ArrowLeft size={15} /> All packages
       </button>
 
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-slate-900">{project.name}</h1>
-            {supplierLike && !locked && <button onClick={() => setEditing(true)} title="Edit details" className="text-slate-400 transition hover:text-blue-600"><Pencil size={15} /></button>}
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-semibold text-slate-900">{project.name}</h1>
+              {supplierLike && !locked && <button onClick={() => setEditing(true)} title="Edit details" className="text-slate-400 transition hover:text-blue-600"><Pencil size={15} /></button>}
+              <StatusPill status={project.status} />
+            </div>
+            <p className="mt-0.5 text-sm text-slate-500">{project.partName}</p>
           </div>
-          <p className="mt-0.5 font-mono text-xs text-slate-500">P/N {project.partNumber} · Rev {project.revision} · {project.customer}</p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => exportPackage(project)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+              <Download size={15} /> Package
+            </button>
+            <button onClick={() => exportCSV(project)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+              <Table2 size={15} /> Excel
+            </button>
+            <button onClick={() => exportPSW(project)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+              <FileText size={15} /> PSW
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => exportPackage(project)}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
-            <Download size={15} /> Package
-          </button>
-          <button onClick={() => exportCSV(project)}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
-            <Table2 size={15} /> Excel
-          </button>
-          <button onClick={() => exportPSW(project)}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
-            <FileText size={15} /> PSW
-          </button>
-          <StatusPill status={project.status} />
-        </div>
+        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-slate-100 pt-4 sm:grid-cols-3 lg:grid-cols-6">
+          <Field label="Part Number" mono value={project.partNumber} />
+          <Field label="Revision" value={project.revision} />
+          <Field label="Supplier" value={project.supplier} />
+          <Field label="Customer" value={project.customer} />
+          <Field label="Owner" value={project.owner || "Unassigned"} />
+          <Field label="Due Date" value={<span className={project.status !== "approved" && daysUntil(project.due) < 0 ? "font-medium text-rose-600" : ""}>{project.due || "Not set"}{project.status !== "approved" && daysUntil(project.due) < 0 ? " (overdue)" : ""}</span>} />
+        </dl>
       </div>
 
       {editing && <ProjectEditForm project={project} onSave={saveEdits} onCancel={() => setEditing(false)} />}
@@ -1158,26 +1440,54 @@ function ProjectView({ user, project, updateProject, openElement, back }) {
           const state = project.elements[el.id];
           const required = req.has(el.id);
           const needsCustomer = el.id === "customer_engineering_approval" && state.status !== "completed";
+          const file = (state.data?.files || [])[0];
+          const lastComment = state.comments && state.comments.length ? state.comments[state.comments.length - 1] : null;
           return (
-            <button key={el.id} onClick={() => required && openElement(el.id)} disabled={!required}
-              className={`flex items-center gap-3 rounded-xl border p-3.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                required ? "border-slate-200 bg-white hover:border-blue-300 hover:shadow-sm" : "border-dashed border-slate-200 bg-slate-50 opacity-60"}`}>
-              <StatusIcon status={required ? state.status : "n/a"} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-slate-400">{String(el.n).padStart(2, "0")}</span>
-                  <span className="truncate text-sm font-medium text-slate-800">{el.name}</span>
-                  {required && needsCustomer && (
-                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"><Lock size={9} /> customer</span>
+            <div key={el.id} className="group relative">
+              <button onClick={() => required && openElement(el.id)} disabled={!required}
+                className={`flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                  required ? "border-slate-200 bg-white hover:border-blue-300 hover:shadow-sm" : "border-dashed border-slate-200 bg-slate-50 opacity-60"}`}>
+                <StatusIcon status={required ? state.status : "n/a"} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-400">{String(el.n).padStart(2, "0")}</span>
+                    <span className="truncate text-sm font-medium text-slate-800">{el.name}</span>
+                    {required && needsCustomer && (
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"><Lock size={9} /> customer</span>
+                    )}
+                    {required && state.comments?.length > 0 && (
+                      <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-slate-400"><MessageSquare size={9} /> {state.comments.length}</span>
+                    )}
+                  </div>
+                  <p className="truncate text-xs text-slate-500">{required ? el.desc : "Not required at this level"}</p>
+                </div>
+                {required && <ChevronRight size={15} className="shrink-0 text-slate-300" />}
+              </button>
+              {required && (
+                <div className="pointer-events-none absolute left-0 right-0 top-full z-20 mt-1 hidden rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-xl group-hover:block">
+                  <p className="mb-1.5 text-slate-600">{el.desc}</p>
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-1.5">
+                    <span className="text-slate-400">Status</span>
+                    <span className="font-medium capitalize text-slate-700">{state.status.replace("_", " ")}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Latest file</span>
+                    <span className="font-mono text-slate-700">{file ? `${file.name}${file.version ? ` v${file.version}` : ""}` : "None"}</span>
+                  </div>
+                  {file?.at && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Uploaded</span>
+                      <span className="text-slate-700">{file.at}{file.by ? ` by ${file.by}` : ""}</span>
+                    </div>
                   )}
-                  {required && state.comments?.length > 0 && (
-                    <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-slate-400"><MessageSquare size={9} /> {state.comments.length}</span>
+                  {lastComment && (
+                    <div className="mt-1.5 border-t border-slate-100 pt-1.5 text-slate-600">
+                      <span className="text-slate-400">Latest comment: </span>{lastComment.text}
+                    </div>
                   )}
                 </div>
-                <p className="truncate text-xs text-slate-500">{required ? el.desc : "Not required at this level"}</p>
-              </div>
-              {required && <ChevronRight size={15} className="shrink-0 text-slate-300" />}
-            </button>
+              )}
+            </div>
           );
         })}
       </div>
@@ -1188,7 +1498,7 @@ function ProjectView({ user, project, updateProject, openElement, back }) {
           <div className="text-sm text-slate-600">
             {project.status === "rejected" ? (
               <span className="flex items-center gap-1.5 text-rose-600"><AlertTriangle size={15} /> Returned: “{project.submission?.comments}”</span>
-            ) : allDone ? "All required elements complete — ready to submit." :
+            ) : allDone ? "All required elements complete. Ready to submit." :
               `Complete all ${p.total} required elements to enable submission. The Customer Engineering Approval step needs customer sign-off.`}
           </div>
           <div className="flex gap-2">
@@ -1234,7 +1544,7 @@ function ProjectView({ user, project, updateProject, openElement, back }) {
       {/* Approved */}
       {project.status === "approved" && (
         <div className="mt-6 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-800"><CheckCircle2 size={15} /> Approved by {project.customer}. {project.submission?.comments}</span>
+          <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-800"><CheckCircle2 size={15} /> Approved by {project.submission?.by || project.customer}. {project.submission?.comments}</span>
           {supplierLike && <button onClick={() => exportPSW(project)} className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm text-emerald-700 hover:bg-emerald-100">Export PSW</button>}
         </div>
       )}
@@ -1258,7 +1568,7 @@ function ProjectView({ user, project, updateProject, openElement, back }) {
 
 function StageStepper({ status }) {
   const idx = status === "approved" ? 2 : status === "submitted" ? 1 : 0;
-  const steps = ["Build", "Customer review", "Approved"];
+  const steps = ["Draft", "Awaiting Approval", "Approved"];
   return (
     <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex items-center">
@@ -1281,21 +1591,85 @@ function StageStepper({ status }) {
           );
         })}
       </div>
-      {status === "submitted" && <p className="mt-3 flex items-center gap-1.5 text-xs text-amber-700"><Lock size={12} /> Locked at customer review — the supplier can't proceed until the customer approves.</p>}
+      {status === "submitted" && <p className="mt-3 flex items-center gap-1.5 text-xs text-amber-700"><Lock size={12} /> Locked for customer approval. The supplier cannot proceed until the customer approves.</p>}
       {status === "rejected" && <p className="mt-3 flex items-center gap-1.5 text-xs text-rose-700"><AlertTriangle size={12} /> Returned to the supplier for changes.</p>}
     </div>
   );
 }
 
 /* --------------------------- element editor --------------------------- */
+function ElementFiles({ files, owner, canEdit, onUpload, onReplace, onAssign }) {
+  const [hist, setHist] = useState(false);
+  const sorted = [...files].sort((a, b) => (b.version || 1) - (a.version || 1));
+  const latest = sorted[0];
+  const supplierUsers = USERS.filter((u) => u.company === SUPPLIER_CO);
+  return (
+    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700"><FileText size={15} className="text-slate-400" /> Files</h3>
+        <label className="flex items-center gap-1.5 text-xs text-slate-500">
+          Owner
+          <select value={owner || ""} disabled={!canEdit} onChange={(e) => onAssign(e.target.value)}
+            className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none disabled:bg-slate-50">
+            <option value="">Unassigned</option>
+            {supplierUsers.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+          </select>
+        </label>
+      </div>
+      {latest ? (
+        <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded bg-blue-50 text-blue-600"><FileText size={16} /></span>
+            <div>
+              <p className="text-sm font-medium text-slate-800">{latest.name}</p>
+              <p className="text-xs text-slate-400">Version {latest.version || 1} · {latest.at || "-"}{latest.by ? ` · ${latest.by}` : ""}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => toast("Download starts in the deployed app", "info")} title="Download" className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><Download size={15} /></button>
+            <button onClick={() => setHist(true)} className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">History ({files.length})</button>
+          </div>
+        </div>
+      ) : (
+        <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-sm text-slate-400">No file uploaded yet.</p>
+      )}
+      {canEdit && (
+        <div className="mt-3 flex gap-2">
+          <button onClick={onUpload} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><Upload size={15} /> Upload</button>
+          {latest && <button onClick={onReplace} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><RotateCcw size={15} /> Replace</button>}
+        </div>
+      )}
+      <p className="mt-2 text-[11px] text-slate-400">File contents are not stored in this demo. Metadata and version history are simulated.</p>
+      {hist && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setHist(false)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-900">Version history</h3>
+              <button onClick={() => setHist(false)} className="text-slate-400 hover:text-slate-700"><XCircle size={20} /></button>
+            </div>
+            <ul className="space-y-2">
+              {sorted.map((f, i) => (
+                <li key={i} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
+                  <span><span className="font-medium text-slate-800">v{f.version || 1}</span> <span className="font-mono text-xs text-slate-500">{f.name}</span></span>
+                  <span className="text-xs text-slate-400">{f.at || "-"}{f.by ? ` · ${f.by}` : ""}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ElementEditor({ user, project, updateProject, elementId, back }) {
   const el = ELEMENTS.find((e) => e.id === elementId);
   const state = project.elements[elementId];
   const isCEA = el.id === "customer_engineering_approval";
-  const supplierLike = user.role === "supplier" || user.role === "admin";
-  const customerLike = user.role === "customer" || user.role === "admin";
+  const supplierLike = isSupplier(user);
+  const customerLike = isCustomer(user);
   const projectLocked = project.status === "submitted" || project.status === "approved";
-  const fieldsReadOnly = !(supplierLike && !projectLocked); // only supplier/admin edit fields, and only before submission
+  const fieldsReadOnly = !(supplierLike && !projectLocked); // only the supplier org edits fields, and only before submission
 
   const setData = (data) =>
     updateProject(project.id, (p) => ({ ...p, elements: { ...p.elements, [elementId]: { ...p.elements[elementId], data } } }));
@@ -1312,7 +1686,15 @@ function ElementEditor({ user, project, updateProject, elementId, back }) {
     }));
     setDraft("");
   };
-  const roleDot = (role) => role === "customer" ? "bg-emerald-500" : role === "admin" ? "bg-violet-500" : "bg-blue-500";
+  const roleDot = (role) => roleOrg(role) === "customer" ? "bg-emerald-500" : "bg-blue-500";
+
+  const files = state.data?.files || [];
+  const today = () => new Date().toISOString().slice(0, 10);
+  const nextVersion = () => (files.length ? Math.max(...files.map((f) => f.version || 1)) + 1 : 1);
+  const setFiles = (next) => setData({ ...state.data, files: next });
+  const uploadFile = () => { const v = nextVersion(); setFiles([...files, { name: `${el.id}_v${v}.pdf`, size: 130000, version: v, at: today(), by: user.name }]); toast(`Uploaded version ${v}`); };
+  const replaceFile = () => { if (!files.length) return uploadFile(); const latest = [...files].sort((a, b) => (b.version || 1) - (a.version || 1))[0]; const v = nextVersion(); setFiles([...files, { name: latest.name, size: 130000, version: v, at: today(), by: user.name }]); toast(`Replaced with version ${v}`); };
+  const assignOwner = (name) => setData({ ...state.data, owner: name });
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -1349,6 +1731,9 @@ function ElementEditor({ user, project, updateProject, elementId, back }) {
         {el.kind === "upload" && <UploadEditor data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
       </div>
 
+      <ElementFiles files={files} owner={state.data?.owner} canEdit={!fieldsReadOnly}
+        onUpload={uploadFile} onReplace={replaceFile} onAssign={assignOwner} />
+
       {isCEA ? (
         <div className="mt-4">
           {state.status === "completed" ? (
@@ -1365,7 +1750,7 @@ function ElementEditor({ user, project, updateProject, elementId, back }) {
             </div>
           ) : (
             <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              <Clock size={15} /> Awaiting customer engineering sign-off — sign in as Customer (or Admin) to approve.
+              <Clock size={15} /> Awaiting customer engineering sign-off. A Customer user can approve it.
             </div>
           )}
         </div>
@@ -1391,7 +1776,7 @@ function ElementEditor({ user, project, updateProject, elementId, back }) {
             <div key={i} className="flex gap-2.5">
               <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${roleDot(c.role)}`} />
               <div>
-                <p className="text-xs text-slate-500"><span className="font-medium text-slate-700">{c.by}</span> <span className="capitalize">· {c.role}</span> · {c.t}</p>
+                <p className="text-xs text-slate-500"><span className="font-medium text-slate-700">{c.by}</span> <span>· {roleLabel(c.role)}</span> · {c.t}</p>
                 <p className="text-sm text-slate-700">{c.text}</p>
               </div>
             </div>
@@ -1497,7 +1882,7 @@ function DimensionalEditor({ data, setData, readOnly }) {
                   <td className="px-2 py-2 text-center"><NumCell value={r.plus} onChange={(e) => update(r.id, "plus", e.target.value)} disabled={readOnly} w="w-16" /></td>
                   <td className="px-2 py-2 text-center"><NumCell value={r.actual} onChange={(e) => update(r.id, "actual", e.target.value)} disabled={readOnly} /></td>
                   <td className="px-2 py-2 text-center">
-                    {v === null ? <span className="text-xs text-slate-300">—</span> :
+                    {v === null ? <span className="text-xs text-slate-300">-</span> :
                       v ? <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">PASS</span>
                         : <span className="rounded bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">FAIL</span>}
                   </td>
@@ -1554,7 +1939,7 @@ function UploadEditor({ data, setData, readOnly }) {
         <label className="mb-4 flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-slate-300 py-8 text-slate-500 transition hover:border-blue-400 hover:text-blue-600">
           <Upload size={22} />
           <span className="text-sm font-medium">Click to attach a document</span>
-          <span className="text-xs text-slate-400">PDF, DXF, XLSX, JPG — recorded for this demo</span>
+          <span className="text-xs text-slate-400">PDF, DXF, XLSX, JPG - recorded for this demo</span>
           <input type="file" multiple className="hidden" onChange={onPick} />
         </label>
       )}
@@ -1673,7 +2058,7 @@ function MsaEditor({ data, setData, readOnly }) {
   );
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Gauge size={16} className="text-blue-500" /> Gage R&R from variation estimates — %GRR and distinct categories compute automatically.</div>
+      <div className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Gauge size={16} className="text-blue-500" /> Gage R&R from variation estimates - %GRR and distinct categories compute automatically.</div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Inp k="ev" label="Repeatability (EV)" hint="equipment σ" />
         <Inp k="av" label="Reproducibility (AV)" hint="appraiser σ" />
@@ -1681,10 +2066,10 @@ function MsaEditor({ data, setData, readOnly }) {
         <Inp k="tol" label="Tolerance (opt.)" hint="USL − LSL" />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Metric label="GRR" value={grr != null ? grr.toFixed(3) : "—"} />
-        <Metric label="% GRR (of TV)" value={pctTV != null ? pctTV.toFixed(1) + "%" : "—"} />
-        <Metric label="% GRR (of tol.)" value={pctTol != null ? pctTol.toFixed(1) + "%" : "—"} />
-        <Metric label="Distinct categories" value={ndc != null ? ndc : "—"} />
+        <Metric label="GRR" value={grr != null ? grr.toFixed(3) : "-"} />
+        <Metric label="% GRR (of TV)" value={pctTV != null ? pctTV.toFixed(1) + "%" : "-"} />
+        <Metric label="% GRR (of tol.)" value={pctTol != null ? pctTol.toFixed(1) + "%" : "-"} />
+        <Metric label="Distinct categories" value={ndc != null ? ndc : "-"} />
       </div>
       {verdict && (
         <div className="mt-4 flex items-center gap-2 text-sm">
@@ -1712,7 +2097,7 @@ function CapabilityEditor({ data, setData, readOnly }) {
   );
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Gauge size={16} className="text-blue-500" /> Initial process capability — Cp and Cpk compute from the spec limits and process statistics.</div>
+      <div className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Gauge size={16} className="text-blue-500" /> Initial process capability - Cp and Cpk compute from the spec limits and process statistics.</div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Inp k="lsl" label="Lower spec (LSL)" />
         <Inp k="usl" label="Upper spec (USL)" />
@@ -1720,11 +2105,11 @@ function CapabilityEditor({ data, setData, readOnly }) {
         <Inp k="sd" label="Std dev (σ)" />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Metric label="Cp" value={cp != null ? cp.toFixed(2) : "—"} />
-        <Metric label="Cpk" value={cpk != null ? cpk.toFixed(2) : "—"} />
+        <Metric label="Cp" value={cp != null ? cp.toFixed(2) : "-"} />
+        <Metric label="Cpk" value={cpk != null ? cpk.toFixed(2) : "-"} />
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <p className="text-xs text-slate-500">Verdict</p>
-          {verdict ? <span className={`mt-1 inline-block rounded px-2 py-1 text-sm font-semibold ${verdict[1]}`}>{verdict[0]}</span> : <p className="text-slate-300">—</p>}
+          {verdict ? <span className={`mt-1 inline-block rounded px-2 py-1 text-sm font-semibold ${verdict[1]}`}>{verdict[0]}</span> : <p className="text-slate-300">-</p>}
         </div>
       </div>
       <p className="mt-3 text-xs text-slate-400">Cpk ≥ 1.33 is the common automotive threshold for a capable process.</p>
@@ -1820,7 +2205,7 @@ function exportPSW(project) {
   doc.setFontSize(16); doc.setFont("helvetica", "bold");
   doc.text("Part Submission Warrant", left, y);
   doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(120);
-  doc.text("Production Part Approval Process — demo export", left, y + 6);
+  doc.text("Production Part Approval Process - demo export", left, y + 6);
   doc.setTextColor(0);
   y += 18;
 
@@ -1828,7 +2213,7 @@ function exportPSW(project) {
     doc.setFont("helvetica", "bold"); doc.setFontSize(10);
     doc.text(label, left, y);
     doc.setFont("helvetica", "normal");
-    doc.text(String(value ?? "—"), left + 55, y);
+    doc.text(String(value ?? "-"), left + 55, y);
     y += 7;
   };
   row("Part name:", project.partName);
@@ -1985,6 +2370,14 @@ function NumCell({ value, onChange, disabled, w = "w-20" }) {
 }
 
 /* ----------------------------- bits ----------------------------- */
+function Field({ label, value, mono }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</dt>
+      <dd className={`mt-0.5 text-sm text-slate-800 ${mono ? "font-mono" : ""}`}>{value}</dd>
+    </div>
+  );
+}
 function Stat({ label, value, accent, icon: Icon }) {
   const color = accent === "amber" ? "text-amber-600" : accent === "emerald" ? "text-emerald-600" : accent === "blue" ? "text-blue-600" : "text-slate-900";
   const iconBg = accent === "amber" ? "bg-amber-50 text-amber-500" : accent === "emerald" ? "bg-emerald-50 text-emerald-500" : "bg-blue-50 text-blue-500";
@@ -2017,7 +2410,7 @@ function StatusIcon({ status, large }) {
 function StatusPill({ status }) {
   const map = {
     draft: ["Draft", "bg-slate-100 text-slate-600"],
-    submitted: ["Awaiting review", "bg-amber-100 text-amber-700"],
+    submitted: ["Awaiting Approval", "bg-amber-100 text-amber-700"],
     approved: ["Approved", "bg-emerald-100 text-emerald-700"],
     rejected: ["Returned", "bg-rose-100 text-rose-700"],
   };
