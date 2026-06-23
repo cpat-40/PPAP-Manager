@@ -54,24 +54,17 @@ function requiredFor(level) {
   return new Set(ELEMENTS.map((e) => e.id)); // 3, 4, 5 → full set
 }
 
-const blueprint = {
-  backgroundColor: "#0b1220",
-  backgroundImage:
-    "linear-gradient(rgba(56,108,179,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(56,108,179,0.12) 1px, transparent 1px)",
-  backgroundSize: "22px 22px",
-};
-
 function BrandMark({ px = 36, variant = "blue" }) {
   if (variant === "light") {
     return (
-      <span className="relative flex shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm"
+      <span className="flex shrink-0 items-center justify-center rounded-md bg-white text-blue-700"
         style={{ width: px, height: px }}>
         <ClipboardCheck size={Math.round(px * 0.52)} strokeWidth={2.2} />
       </span>
     );
   }
   return (
-    <span className="relative flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-lg shadow-blue-900/30"
+    <span className="flex shrink-0 items-center justify-center rounded-md bg-blue-700 text-white"
       style={{ width: px, height: px }}>
       <ClipboardCheck size={Math.round(px * 0.52)} strokeWidth={2.2} />
     </span>
@@ -353,9 +346,9 @@ export default function App() {
   if (!user) return <Login onLogin={(u) => { setUser(u); setRoute({ view: "dashboard", projectId: null, elementId: null }); }} />;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-[1200px] flex-col text-slate-800">
+    <div className="flex min-h-screen flex-col text-slate-800">
       <DemoBanner onReset={resetDemo} />
-      <div className="flex flex-1 overflow-hidden border-x border-slate-200 bg-slate-50">
+      <div className="flex flex-1 overflow-hidden bg-slate-50">
         <Sidebar user={user} route={route} setRoute={setRoute} onLogout={() => setUser(null)} />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar user={user} route={route} setRoute={setRoute} projects={projects} onLogout={() => setUser(null)} />
@@ -462,10 +455,10 @@ function TopBar({ user, route, setRoute, projects, onLogout }) {
 
 function DemoBanner({ onReset }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-x border-t border-blue-100 bg-blue-50 px-4 py-2 text-xs text-blue-800">
+    <div className="flex items-center justify-between gap-3 border-b border-blue-100 bg-blue-50 px-4 py-2 text-xs text-blue-800">
       <span className="flex items-center gap-2">
         <span className="inline-flex h-1.5 w-1.5 rounded-full bg-blue-500" />
-        Live demo. Your data stays in this browser; nothing is sent anywhere.
+        Demo environment. Data is stored in this browser only.
       </span>
       <button onClick={onReset} className="flex items-center gap-1 rounded px-2 py-1 text-blue-600 transition hover:bg-blue-100 hover:text-blue-800">
         <RotateCcw size={12} /> Reset demo
@@ -505,58 +498,66 @@ function Login({ onLogin }) {
     { role: "customer_admin", user: USERS[3], icon: ShieldCheck, accent: "emerald", desc: "Review, approve, return and manage your team" },
     { role: "customer_member", user: USERS[4], icon: ShieldCheck, accent: "emerald", desc: "Review submissions and leave comments" },
   ];
-  const features = ["18 PPAP elements", "Live RPN and Cpk", "Approval workflow", "PDF and Excel export"];
+  const capabilities = [
+    "18-element PPAP packages, scoped to submission level",
+    "FMEA, Cpk and Gage R&R calculated inline",
+    "Supplier-to-customer submission and approval workflow",
+    "PSW and full-package export, with activity history",
+  ];
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-slate-100">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
           <div className="flex items-center gap-2.5">
-            <BrandMark px={32} />
-            <div className="leading-tight">
-              <span className="block text-sm font-semibold tracking-tight text-slate-900">PPAP Manager</span>
-              <span className="block text-[11px] text-slate-500">Quality submission platform</span>
-            </div>
+            <BrandMark px={30} />
+            <span className="text-sm font-semibold tracking-tight text-slate-900">PPAP Manager</span>
           </div>
-          <span className="hidden text-xs text-slate-400 sm:inline">Product demo</span>
+          <span className="text-xs text-slate-400">Internal demo environment</span>
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl items-stretch gap-8 px-6 py-12 lg:grid-cols-2 lg:py-16">
-        <div className="flex flex-col justify-center rounded-2xl bg-gradient-to-br from-blue-700 to-blue-900 p-8 text-white sm:p-10">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-blue-50">
-            Production Part Approval Process
-          </span>
-          <h1 className="mt-4 text-3xl font-bold leading-[1.15] tracking-tight sm:text-4xl">
-            The quality submission platform for manufacturing teams
-          </h1>
-          <p className="mt-4 max-w-md text-base leading-relaxed text-blue-100">
-            Manage every PPAP package across suppliers and customers in one shared workspace, with built in calculations, approval workflow, and a complete audit trail.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-2">
-            {features.map((t) => (
-              <span key={t} className="rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-blue-50">{t}</span>
-            ))}
+      <main className="mx-auto flex w-full max-w-5xl flex-1 items-center px-6 py-10">
+        <div className="grid w-full overflow-hidden rounded-md border border-slate-300 bg-white shadow-sm md:grid-cols-[1.1fr_1fr]">
+          <div className="flex flex-col justify-between bg-blue-800 p-8 text-blue-50">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-blue-300">Production Part Approval Process</p>
+              <h1 className="mt-3 text-2xl font-semibold leading-snug text-white">
+                Prepare, submit and approve PPAP packages in one place.
+              </h1>
+              <p className="mt-3 text-sm leading-relaxed text-blue-100">
+                Shared between supplier and customer quality teams. Replaces the email-and-spreadsheet handoff for production part approval.
+              </p>
+              <ul className="mt-6 space-y-2 text-sm text-blue-100">
+                {capabilities.map((c) => (
+                  <li key={c} className="flex gap-2.5">
+                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-blue-300" />
+                    <span>{c}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <p className="mt-8 text-xs text-blue-300">AIAG PPAP 4th edition reference. Not affiliated with AIAG.</p>
           </div>
-        </div>
 
-        <div className="flex flex-col justify-center rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <h2 className="text-base font-semibold text-slate-900">Sign in to the demo</h2>
-          <p className="mb-4 mt-0.5 text-xs text-slate-500">Choose a role to explore. You can switch anytime.</p>
-          <div className="space-y-2.5">
-            {roles.map(({ role, user, icon, accent, desc }) => (
-              <RoleButton key={role} icon={icon} accent={accent}
-                title={`${roleLabel(role)}`}
-                sub={`${user.name} at ${user.company}`}
-                hint={desc}
-                onClick={() => onLogin({ name: user.name, role, company: user.company, email: user.email, title: user.title })} />
-            ))}
+          <div className="flex flex-col justify-center p-8">
+            <h2 className="text-sm font-semibold text-slate-900">Sign in</h2>
+            <p className="mb-4 mt-1 text-xs text-slate-500">Select an account to continue.</p>
+            <div className="space-y-2">
+              {roles.map(({ role, user, icon, accent, desc }) => (
+                <RoleButton key={role} icon={icon} accent={accent}
+                  title={`${roleLabel(role)}`}
+                  sub={`${user.name}, ${user.company}`}
+                  hint={desc}
+                  onClick={() => onLogin({ name: user.name, role, company: user.company, email: user.email, title: user.title })} />
+              ))}
+            </div>
+            <p className="mt-4 text-[11px] text-slate-400">Demo accounts. Data is kept in this browser only.</p>
           </div>
-          <p className="mt-4 text-center text-[11px] text-slate-400">No signup required. Runs in your browser.</p>
         </div>
       </main>
 
-      <footer className="mx-auto max-w-6xl px-6 py-6 text-xs text-slate-400">
-        PPAP Manager. Product demo by Chaitanya Patwardhan. Not affiliated with AIAG.
+      <footer className="mx-auto w-full max-w-5xl px-6 py-5 text-xs text-slate-400">
+        PPAP Manager. Product demo by Chaitanya Patwardhan.
       </footer>
     </div>
   );
@@ -565,14 +566,13 @@ function RoleButton({ onClick, icon: Icon, accent, title, sub, hint }) {
   const ic = accent === "emerald" ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600";
   return (
     <button onClick={onClick}
-      className="group flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 py-3 text-left transition hover:border-blue-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${ic}`}><Icon size={18} /></span>
+      className="group flex w-full items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-blue-400 hover:bg-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded ${ic}`}><Icon size={16} /></span>
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-slate-900">{title}</span>
         <span className="block truncate text-xs text-slate-500">{sub}</span>
-        {hint && <span className="mt-0.5 block truncate text-[11px] text-slate-400">{hint}</span>}
       </span>
-      <ChevronRight size={16} className="shrink-0 text-slate-300 transition group-hover:translate-x-0.5" />
+      <ChevronRight size={15} className="shrink-0 text-slate-300" />
     </button>
   );
 }
@@ -591,7 +591,7 @@ function Sidebar({ user, route, setRoute, onLogout }) {
         <BrandMark px={34} variant="light" />
         <div className="leading-tight">
           <span className="block text-sm font-semibold tracking-tight text-white">PPAP Manager</span>
-          <span className="block text-[10px] text-blue-200/80">Quality submissions</span>
+          <span className="block text-[10px] text-blue-200/80">PPAP 4th edition</span>
         </div>
       </div>
       <div className="border-b border-white/10 px-4 py-3">
@@ -681,7 +681,6 @@ const STATUS_FLOW = [
 
 /* --------------------------- dashboards --------------------------- */
 function Dashboard({ user, projects, updateProject, open, goProjects }) {
-  const first = user.name.split(" ")[0];
   const totals = projects.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc; }, {});
   const overdue = projects.filter((p) => p.status !== "approved" && daysUntil(p.due) < 0).length;
   const queue = projects.filter((p) => p.submission && p.submission.status === "pending");
@@ -694,8 +693,8 @@ function Dashboard({ user, projects, updateProject, open, goProjects }) {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <h1 className="mb-1 text-xl font-semibold text-slate-900">Welcome back, {first}</h1>
-      <p className="mb-6 text-sm text-slate-500">{user.company} - {roleLabel(user.role)}</p>
+      <h1 className="mb-1 text-xl font-semibold text-slate-900">Dashboard</h1>
+      <p className="mb-6 text-sm text-slate-500">{user.company} · {roleLabel(user.role)}</p>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Total Packages" value={projects.length} accent="blue" />
