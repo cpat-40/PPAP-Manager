@@ -4,9 +4,9 @@ import {
   ClipboardCheck, FileText, LayoutDashboard, FolderKanban, LogOut, ChevronRight,
   CheckCircle2, Circle, Clock, Upload, Plus, Trash2, ArrowLeft, ShieldCheck,
   XCircle, Send, Gauge, AlertTriangle, Factory, Download, RotateCcw,
-  Settings, Lock, BarChart3, MessageSquare, Pencil, Table2, Bell, Zap, MoreVertical, Users, Mail, UserPlus,
+  Settings, Lock, BarChart3, MessageSquare, Pencil, Table2, Bell, Zap, MoreVertical, Users, Mail, UserPlus, Workflow, PenLine, Inbox,
 } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from "recharts";
 
 /* ================================================================== *
  *  PPAP Manager - demo build
@@ -86,6 +86,25 @@ function dueIn(days) {
   const d = new Date(); d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') q = false;
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += c;
+  }
+  if (cell.length || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter((r) => r.length);
+}
 
 /* ---- lightweight toast + confirm dialog (no extra deps) ---- */
 let toastListeners = [];
@@ -93,6 +112,32 @@ let toastSeq = 0;
 function toast(message, tone = "success") {
   const t = { id: ++toastSeq, message, tone };
   toastListeners.forEach((fn) => fn(t));
+}
+
+/* ---- simulated email outbox (real email needs a backend; see Resend note) ---- */
+let outboxItems = [
+  { id: 1, at: "2026-06-22 09:14", to: "anna.lee@meridianmotors.com", tag: "Submitted", subject: "PPAP submitted for approval: Sensor Housing", body: "SH-2045-A Rev A from Apex Components is ready for review at Submission Level 3 (18/18 required elements complete)." },
+  { id: 2, at: "2026-06-21 11:30", to: "jane.roe@apexcomponents.com", tag: "Returned", subject: "PPAP returned for changes: Brake Assembly", body: "BR-3302-C was returned by Anna Lee. Notes: Cpk on the bore is below 1.33. Please re-run the capability study after the tooling change and resubmit." },
+  { id: 3, at: "2026-06-20 16:02", to: "john.doe@apexcomponents.com", tag: "Approved", subject: "PPAP approved: Cooling Module", body: "CM-8871-B was approved by Anna Lee. Notes: Reviewed and approved. Strong capability on the seal groove." },
+];
+let outboxListeners = [];
+function sendEmail(email) {
+  const item = { id: Date.now() + Math.random(), at: new Date().toISOString().slice(0, 16).replace("T", " "), ...email };
+  outboxItems = [item, ...outboxItems];
+  outboxListeners.forEach((fn) => fn(outboxItems));
+  if (email.to) toast(`Email sent to ${email.to}`, "info");
+}
+function notifyStatus(project, status, extra = {}) {
+  const byName = (n) => USERS.find((u) => u.name === n);
+  const supplierEmail = (byName(project.owner)?.email) || USERS.find((u) => u.role === "supplier_admin")?.email;
+  const customerEmail = USERS.find((u) => u.role === "customer_admin")?.email;
+  const prog = progressOf(project);
+  if (status === "submitted")
+    sendEmail({ to: customerEmail, tag: "Submitted", subject: `PPAP submitted for approval: ${project.name}`, body: `${project.partNumber} Rev ${project.revision} from ${project.supplier} is ready for review at Submission Level ${project.level} (${prog.done}/${prog.total} required elements complete).` });
+  else if (status === "approved")
+    sendEmail({ to: supplierEmail, tag: "Approved", subject: `PPAP approved: ${project.name}`, body: `${project.partNumber} was approved by ${extra.by || project.customer}.${extra.comments ? " Notes: " + extra.comments : ""}` });
+  else if (status === "rejected")
+    sendEmail({ to: supplierEmail, tag: "Returned", subject: `PPAP returned for changes: ${project.name}`, body: `${project.partNumber} was returned by ${extra.by || project.customer}.${extra.comments ? " Notes: " + extra.comments : ""}` });
 }
 function Toaster() {
   const [items, setItems] = useState([]);
@@ -163,11 +208,11 @@ const canManageUsers = (u) => !!u && u.role.endsWith("_admin");
 const SUPPLIER_CO = "Apex Components";
 const CUSTOMER_CO = "Meridian Motors";
 const USERS = [
-  { id: 1, name: "Chaitanya Patwardhan", email: "chaitanya.patwardhan@apexcomponents.com", company: SUPPLIER_CO, role: "supplier_admin", title: "Quality Lead" },
-  { id: 2, name: "Priya Nair", email: "priya.nair@apexcomponents.com", company: SUPPLIER_CO, role: "supplier_member", title: "Supplier Engineer" },
-  { id: 3, name: "Marcus Webb", email: "marcus.webb@apexcomponents.com", company: SUPPLIER_CO, role: "supplier_member", title: "Manufacturing Engineer" },
-  { id: 4, name: "Sarah Chen", email: "sarah.chen@meridianmotors.com", company: CUSTOMER_CO, role: "customer_admin", title: "Quality Manager" },
-  { id: 5, name: "Daniel Reyes", email: "daniel.reyes@meridianmotors.com", company: CUSTOMER_CO, role: "customer_member", title: "Customer Quality Engineer" },
+  { id: 1, name: "John Doe", email: "john.doe@apexcomponents.com", company: SUPPLIER_CO, role: "supplier_admin", title: "Quality Lead" },
+  { id: 2, name: "Jane Roe", email: "jane.roe@apexcomponents.com", company: SUPPLIER_CO, role: "supplier_member", title: "Supplier Engineer" },
+  { id: 3, name: "Mike Smith", email: "mike.smith@apexcomponents.com", company: SUPPLIER_CO, role: "supplier_member", title: "Manufacturing Engineer" },
+  { id: 4, name: "Anna Lee", email: "anna.lee@meridianmotors.com", company: CUSTOMER_CO, role: "customer_admin", title: "Quality Manager" },
+  { id: 5, name: "Sam Carter", email: "sam.carter@meridianmotors.com", company: CUSTOMER_CO, role: "customer_member", title: "Customer Quality Engineer" },
 ];
 
 function Avatar({ name, role, size = 30 }) {
@@ -204,9 +249,43 @@ function blankElements() {
 let _id = 100;
 const nextId = () => ++_id;
 
+function spcSample() {
+  return {
+    lsl: "11.98", usl: "12.02", target: "12.00",
+    readings: [12.004, 12.007, 12.002, 12.006, 12.009, 12.003, 12.005, 12.008, 12.001, 12.006, 12.004, 12.010, 12.005, 12.003, 12.007, 12.002, 12.006, 12.004, 12.008, 12.005, 12.003, 12.006, 12.009, 12.004, 12.005],
+  };
+}
+function parseReadings(v) {
+  if (Array.isArray(v)) return v.filter((x) => typeof x === "number" && !isNaN(x));
+  if (typeof v === "string") return v.split(/[\s,]+/).map(Number).filter((x) => !isNaN(x));
+  return [];
+}
+function spcStats(data) {
+  if (!data) return null;
+  const xs = parseReadings(data.readings);
+  const lsl = parseFloat(data.lsl), usl = parseFloat(data.usl);
+  if (xs.length >= 2 && !isNaN(lsl) && !isNaN(usl)) {
+    const n = xs.length;
+    const mean = xs.reduce((a, b) => a + b, 0) / n;
+    const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1));
+    let mr = 0; for (let i = 1; i < n; i++) mr += Math.abs(xs[i] - xs[i - 1]);
+    const mrBar = mr / (n - 1);
+    const sigmaHat = mrBar / 1.128 || sd;
+    const cp = (usl - lsl) / (6 * sd);
+    const cpk = Math.min((usl - mean) / (3 * sd), (mean - lsl) / (3 * sd));
+    return { n, mean, sd, cp, cpk, ucl: mean + 3 * sigmaHat, lcl: mean - 3 * sigmaHat, sigmaHat, xs, lsl, usl };
+  }
+  // fallback to summary statistics if no readings
+  const mean = parseFloat(data.mean), sd = parseFloat(data.sd);
+  if ([usl, lsl, mean, sd].every((v) => !isNaN(v)) && sd > 0) {
+    return { n: 0, mean, sd, cp: (usl - lsl) / (6 * sd), cpk: Math.min((usl - mean) / (3 * sd), (mean - lsl) / (3 * sd)), ucl: mean + 3 * sd, lcl: mean - 3 * sd, sigmaHat: sd, xs: [], lsl, usl };
+  }
+  return null;
+}
+
 function completedElements() {
   const out = {};
-  ELEMENTS.forEach((e) => (out[e.id] = { status: "completed", data: { files: [{ name: `${e.id}_evidence.pdf`, size: 120000, version: 1, at: "2026-06-10", by: "Priya Nair" }] } }));
+  ELEMENTS.forEach((e) => (out[e.id] = { status: "completed", data: { files: [{ name: `${e.id}_evidence.pdf`, size: 120000, version: 1, at: "2026-06-10", by: "Jane Roe" }] } }));
   out.design_fmea = {
     status: "completed",
     data: { rows: [
@@ -217,7 +296,7 @@ function completedElements() {
   out.process_fmea = {
     status: "completed",
     data: { rows: [
-      { id: 1, item: "CNC mill op 20", fn: "Machine bore", mode: "Oversize bore", effect: "Loose fit", sev: 6, cause: "Tool offset drift", occ: 3, ctrl: "In-process gauging", det: 2 },
+      { id: 1, item: "CNC mill op 20", fn: "Machine bore", mode: "Oversize bore", effect: "Loose fit", sev: 6, cause: "Tool offset drift", occ: 3, ctrl: "In-process gauging", det: 2, stepId: 2 },
     ] },
   };
   out.dimensional_results = {
@@ -236,17 +315,17 @@ function completedElements() {
     { id: 5, name: "Final inspection", type: "Inspection", desc: "Dimensional + visual" },
   ] } };
   out.control_plan = { status: "completed", data: { rows: [
-    { id: 1, characteristic: "Bore Ø", spec: "12.0 ±0.02", method: "CMM", freq: "5/shift", reaction: "Quarantine + adjust offset" },
-    { id: 2, characteristic: "Seal groove width", spec: "2.50 ±0.05", method: "Optical comparator", freq: "Hourly", reaction: "Replace tool, sort batch" },
+    { id: 1, characteristic: "Bore Ø", spec: "12.0 ±0.02", method: "CMM", freq: "5/shift", reaction: "Quarantine + adjust offset", stepId: 2 },
+    { id: 2, characteristic: "Seal groove width", spec: "2.50 ±0.05", method: "Optical comparator", freq: "Hourly", reaction: "Replace tool, sort batch", stepId: 5 },
   ] } };
   out.measurement_system_analysis = { status: "completed", data: { ev: "0.08", av: "0.05", pv: "1.20", tol: "0.04" } };
-  out.initial_sample_inspection = { status: "completed", data: { lsl: "11.98", usl: "12.02", mean: "12.005", sd: "0.004" } };
+  out.initial_sample_inspection = { status: "completed", data: { ...spcSample(), files: [{ name: "initial_sample_inspection_evidence.pdf", size: 120000, version: 1, at: "2026-06-10", by: "Jane Roe" }] } };
   out.material_performance_results = { status: "completed", data: { rows: [
     { id: 1, test: "Salt spray", requirement: "≥ 96 h", result: "120 h", verdict: "pass" },
     { id: 2, test: "Tensile strength", requirement: "≥ 240 MPa", result: "268 MPa", verdict: "pass" },
   ] } };
   out.customer_specific_requirements = { status: "completed", data: { items: CSR_DEFAULTS.map((text, i) => ({ id: i + 1, text, met: true, note: "On file" })) } };
-  out.part_submission_warrant = { status: "completed", data: { reason: "Initial submission", declared: true } };
+  out.part_submission_warrant = { status: "completed", data: { reason: "Initial submission", declared: true, supplierSign: { name: "John Doe", date: "2026-06-09" } } };
   return out;
 }
 
@@ -260,7 +339,7 @@ function withEvent(project, text) {
 
 function seedProjects() {
   const draftEls = blankElements();
-  draftEls.design_records = { status: "completed", data: { files: [{ name: "SB-1180-A_drawing_revA.pdf", size: 248000, by: "Marcus Webb", at: "2026-06-08", version: 2 }], notes: "Released drawing, Rev A." } };
+  draftEls.design_records = { status: "completed", data: { files: [{ name: "SB-1180-A_drawing_revA.pdf", size: 248000, by: "Mike Smith", at: "2026-06-08", version: 2 }], notes: "Released drawing, Rev A." } };
   draftEls.process_flow_diagram = { status: "completed", data: { steps: [
     { id: 1, name: "Receive blank", type: "Operation", desc: "Steel stamping" },
     { id: 2, name: "Form bracket", type: "Operation", desc: "Press op 10" },
@@ -277,43 +356,43 @@ function seedProjects() {
       id: 1, name: "Sensor Housing", partNumber: "SH-2045-A", partName: "Coolant Temp Sensor Housing",
       customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "A", level: 3,
       status: "submitted", submission: { status: "pending", comments: "" },
-      owner: "Priya Nair", elements: completedElements(), due: dueIn(4),
-      activity: [evt("Submitted for approval", 1), evt("Customer engineering approval granted", 2), evt("Created by Priya Nair", 9)],
+      owner: "Jane Roe", elements: completedElements(), due: dueIn(4),
+      activity: [evt("Submitted for approval", 1), evt("Customer engineering approval granted", 2), evt("Created by Jane Roe", 9)],
     },
     {
       id: 2, name: "Cooling Module", partNumber: "CM-8871-B", partName: "Radiator Cooling Module",
       customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "B", level: 3,
-      status: "approved", submission: { status: "approved", comments: "Reviewed and approved. Strong capability on the seal groove.", by: "Sarah Chen" },
-      owner: "Chaitanya Patwardhan", elements: completedElements(), due: dueIn(-6),
-      activity: [evt("Approved by Sarah Chen", 2), evt("Submitted for approval", 5), evt("Created by Chaitanya Patwardhan", 18)],
+      status: "approved", submission: { status: "approved", comments: "Reviewed and approved. Strong capability on the seal groove.", by: "Anna Lee", signedAt: "2026-06-20" },
+      owner: "John Doe", elements: completedElements(), due: dueIn(-6),
+      activity: [evt("Approved by Anna Lee", 2), evt("Submitted for approval", 5), evt("Created by John Doe", 18)],
     },
     {
       id: 3, name: "Brake Assembly", partNumber: "BR-3302-C", partName: "Front Brake Caliper Assembly",
       customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "C", level: 3,
-      status: "rejected", submission: { status: "rejected", comments: "Cpk on the bore is below 1.33. Please re-run the capability study after the tooling change and resubmit.", by: "Sarah Chen" },
-      owner: "Priya Nair", elements: lowCpk(), due: dueIn(6),
-      activity: [evt("Returned for changes by Sarah Chen", 1), evt("Submitted for approval", 2), evt("Created by Priya Nair", 12)],
+      status: "rejected", submission: { status: "rejected", comments: "Cpk on the bore is below 1.33. Please re-run the capability study after the tooling change and resubmit.", by: "Anna Lee" },
+      owner: "Jane Roe", elements: lowCpk(), due: dueIn(6),
+      activity: [evt("Returned for changes by Anna Lee", 1), evt("Submitted for approval", 2), evt("Created by Jane Roe", 12)],
     },
     {
       id: 4, name: "Steering Bracket", partNumber: "SB-1180-A", partName: "Steering Column Bracket",
       customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "A", level: 3,
       status: "draft", submission: null,
-      owner: "Marcus Webb", elements: draftEls, due: dueIn(14),
-      activity: [evt("Design records uploaded by Marcus Webb", 3), evt("Created by Marcus Webb", 5)],
+      owner: "Mike Smith", elements: draftEls, due: dueIn(14),
+      activity: [evt("Design records uploaded by Mike Smith", 3), evt("Created by Mike Smith", 5)],
     },
     {
       id: 5, name: "Battery Mount", partNumber: "BM-4420-A", partName: "HV Battery Mounting Frame",
       customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "A", level: 3,
       status: "submitted", submission: { status: "pending", comments: "" },
-      owner: "Chaitanya Patwardhan", elements: completedElements(), due: dueIn(2),
-      activity: [evt("Submitted for approval", 1), evt("Created by Chaitanya Patwardhan", 8)],
+      owner: "John Doe", elements: completedElements(), due: dueIn(2),
+      activity: [evt("Submitted for approval", 1), evt("Created by John Doe", 8)],
     },
     {
       id: 6, name: "Coolant Pump", partNumber: "CP-7763-A", partName: "Electric Coolant Pump Body",
       customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "A", level: 1,
       status: "draft", submission: null,
-      owner: "Marcus Webb", elements: blankElements(), due: dueIn(21),
-      activity: [evt("Created by Marcus Webb", 1)],
+      owner: "Mike Smith", elements: blankElements(), due: dueIn(21),
+      activity: [evt("Created by Mike Smith", 1)],
     },
   ];
 }
@@ -353,7 +432,12 @@ export default function App() {
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar user={user} route={route} setRoute={setRoute} projects={projects} onLogout={() => setUser(null)} />
           <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-            {route.view === "dashboard" && guideOpen && <DemoGuide role={user.role} onDismiss={() => setGuideOpen(false)} />}
+            {route.view === "dashboard" && guideOpen && (
+              <DemoGuide role={user.role} projects={projects} onDismiss={() => setGuideOpen(false)}
+                open={(id) => setRoute({ view: "project", projectId: id, elementId: null })}
+                goProjects={() => setRoute({ view: "projects", projectId: null, elementId: null })}
+                goAnalytics={() => setRoute({ view: "analytics", projectId: null, elementId: null })} />
+            )}
             <Content
               user={user}
               projects={projects}
@@ -369,6 +453,7 @@ export default function App() {
       </div>
       <Toaster />
       <ConfirmHost />
+      <SignHost />
     </div>
   );
 }
@@ -468,25 +553,59 @@ function DemoBanner({ onReset }) {
 }
 
 /* ----------------------------- login ----------------------------- */
-function DemoGuide({ role, onDismiss }) {
-  const steps = roleOrg(role) === "customer"
-    ? ["Open a package in your approval queue below", "Review the 18 elements and the live calculations", "Approve it, or return it with comments"]
-    : ["Open a package below (or click New package)", "Fill an element. RPN and Cpk calculate live", "Submit it to the customer for approval"];
+function DemoGuide({ role, projects, open, goProjects, goAnalytics, onDismiss }) {
+  const [done, setDone] = useState([]);
+  const mark = (i, run) => { setDone((d) => (d.includes(i) ? d : [...d, i])); run(); };
+  const cust = roleOrg(role) === "customer";
+  const pendings = projects.filter((p) => p.submission && p.submission.status === "pending");
+  const first = projects[0];
+
+  const scenario = cust
+    ? `You are a quality engineer at ${CUSTOMER_CO}. ${pendings.length === 1 ? "One supplier package is" : `${pendings.length} supplier packages are`} awaiting your approval.`
+    : `You are a quality engineer at ${SUPPLIER_CO}. Prepare a PPAP package and submit it to ${CUSTOMER_CO} for approval.`;
+
+  const steps = cust
+    ? [
+        { label: "Open a submission and review its 18 elements", run: () => (pendings[0] ? open(pendings[0].id) : goProjects()) },
+        { label: "Approve it, or return it with a comment", run: () => (pendings[0] ? open(pendings[0].id) : goProjects()) },
+        { label: "Check the analytics: cycle time and approval rate", run: goAnalytics },
+      ]
+    : [
+        { label: "Open a package and fill an element (Cpk and RPN calculate live)", run: () => (first ? open(first.id) : goProjects()) },
+        { label: "Switch the packages view to the pipeline board", run: goProjects },
+        { label: "Check the analytics: status mix and supplier performance", run: goAnalytics },
+      ];
+
   return (
-    <div className="relative mb-6 overflow-hidden rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5">
-      <button onClick={onDismiss} title="Dismiss" className="absolute right-3 top-3 text-slate-400 transition hover:text-slate-600"><XCircle size={18} /></button>
-      <div className="mb-3 flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white"><Zap size={16} /></span>
-        <h2 className="text-sm font-semibold text-slate-800">New here? The 30-second tour</h2>
+    <div className="relative mb-6 rounded-md border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-blue-600">Guided demo</p>
+          <p className="mt-0.5 text-sm text-slate-700">{scenario}</p>
+        </div>
+        <button onClick={onDismiss} title="Dismiss" className="ml-4 shrink-0 rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"><XCircle size={18} /></button>
       </div>
-      <ol className="space-y-1.5">
-        {steps.map((t, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-semibold text-blue-700">{i + 1}</span>
-            {t}
-          </li>
-        ))}
-      </ol>
+      <div className="px-5 py-3">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-medium text-slate-500">Try these</p>
+          <p className="text-xs text-slate-400">{done.length} of {steps.length} explored</p>
+        </div>
+        <div className="space-y-1.5">
+          {steps.map((s, i) => {
+            const ok = done.includes(i);
+            return (
+              <button key={i} onClick={() => mark(i, s.run)}
+                className="group flex w-full items-center gap-3 rounded-md border border-slate-200 px-3 py-2 text-left text-sm transition hover:border-blue-400 hover:bg-blue-50/40">
+                <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${ok ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700"}`}>
+                  {ok ? <CheckCircle2 size={13} /> : i + 1}
+                </span>
+                <span className={ok ? "text-slate-400 line-through" : "text-slate-700"}>{s.label}</span>
+                <ChevronRight size={15} className="ml-auto shrink-0 text-slate-300" />
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -583,6 +702,7 @@ function Sidebar({ user, route, setRoute, onLogout }) {
     { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { key: "projects", label: "Packages", icon: FolderKanban },
     { key: "analytics", label: "Analytics", icon: BarChart3 },
+    { key: "outbox", label: "Notifications", icon: Inbox },
     ...(canManageUsers(user) ? [{ key: "members", label: "Members", icon: Users }] : []),
   ];
   return (
@@ -648,6 +768,7 @@ function Content({ user, projects, setProjects, updateProject, users, setUsers, 
   }
   if (route.view === "analytics") return <AnalyticsView projects={projects} users={users} />;
   if (route.view === "members") return <Members user={user} users={users} setUsers={setUsers} />;
+  if (route.view === "outbox") return <Outbox />;
   return <Dashboard user={user} projects={projects} updateProject={updateProject}
     open={(id) => setRoute({ view: "project", projectId: id, elementId: null })}
     goProjects={() => setRoute({ view: "projects", projectId: null, elementId: null })} />;
@@ -904,6 +1025,52 @@ function ChartCard({ title, children }) {
   );
 }
 
+function Outbox() {
+  const [items, setItems] = useState(outboxItems);
+  const [open, setOpen] = useState(null);
+  useEffect(() => {
+    const fn = (next) => setItems([...next]);
+    outboxListeners.push(fn);
+    return () => { outboxListeners = outboxListeners.filter((f) => f !== fn); };
+  }, []);
+  const tagColor = (t) => t === "Approved" ? "bg-emerald-100 text-emerald-700" : t === "Returned" ? "bg-rose-100 text-rose-700" : "bg-blue-100 text-blue-700";
+  return (
+    <div className="mx-auto max-w-4xl">
+      <h1 className="text-xl font-semibold text-slate-900">Notifications</h1>
+      <p className="mb-2 mt-0.5 text-sm text-slate-500">Emails the system sends on submit, approve, and return.</p>
+      <div className="mb-4 flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <Mail size={13} /> Simulated outbox for the demo. With a backend (e.g. Resend) these send as real email.
+      </div>
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        {items.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-slate-400">No notifications yet. Submit or approve a package to generate one.</p>
+        ) : items.map((m) => (
+          <div key={m.id} className="border-b border-slate-100 last:border-0">
+            <button onClick={() => setOpen(open === m.id ? null : m.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"><Mail size={15} /></span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="truncate text-sm font-medium text-slate-800">{m.subject}</span>
+                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${tagColor(m.tag)}`}>{m.tag}</span>
+                </span>
+                <span className="block truncate text-xs text-slate-400">To {m.to} · {m.at}</span>
+              </span>
+              <ChevronRight size={15} className={`shrink-0 text-slate-300 transition ${open === m.id ? "rotate-90" : ""}`} />
+            </button>
+            {open === m.id && (
+              <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <p className="mb-1 text-xs text-slate-400">To: {m.to}</p>
+                <p className="mb-2 font-medium text-slate-700">{m.subject}</p>
+                <p>{m.body}</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Members({ user, users, setUsers }) {
   const canManage = canManageUsers(user);
   const [inviting, setInviting] = useState(false);
@@ -984,9 +1151,15 @@ function ReviewCard({ project, updateProject, open, user }) {
   const [comments, setComments] = useState("");
   const p = progressOf(project);
   const by = user ? user.name : "Customer";
-  const decide = (status) => {
-    updateProject(project.id, (pr) => withEvent({ ...pr, status, submission: { ...pr.submission, status, comments, by }, }, status === "approved" ? `Approved by ${by}` : `Returned for changes by ${by}`));
+  const decide = (status, sign) => {
+    const signedBy = sign?.name || by;
+    updateProject(project.id, (pr) => withEvent({ ...pr, status, submission: { ...pr.submission, status, comments, by: signedBy, signature: sign?.dataUrl, signedAt: sign?.date } }, status === "approved" ? `Approved by ${signedBy}` : `Returned for changes by ${signedBy}`));
     toast(status === "approved" ? "Package approved" : "Returned to supplier", status === "approved" ? "success" : "info");
+    notifyStatus(project, status, { by: signedBy, comments });
+  };
+  const approve = async () => {
+    const s = await requestSignature({ title: "Sign to approve", subtitle: `Approve ${project.name} on behalf of ${project.customer}.`, confirmLabel: "Sign & approve", defaultName: by });
+    if (s) decide("approved", s);
   };
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1006,9 +1179,9 @@ function ReviewCard({ project, updateProject, open, user }) {
         placeholder="Notes for the supplier (required to return the package)"
         className="mb-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
       <div className="flex gap-2">
-        <button onClick={() => decide("approved")}
+        <button onClick={approve}
           className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
-          <CheckCircle2 size={16} /> Approve
+          <PenLine size={16} /> Sign &amp; approve
         </button>
         <button onClick={() => comments.trim() && decide("rejected")} disabled={!comments.trim()}
           title={!comments.trim() ? "Add a comment to return the package" : ""}
@@ -1026,6 +1199,7 @@ function ProjectsList({ user, projects, setProjects, updateProject, open }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState("table");
+  const csvRef = React.useRef(null);
   const canBuild = isSupplier(user);
 
   const create = (form) => {
@@ -1051,6 +1225,43 @@ function ProjectsList({ user, projects, setProjects, updateProject, open }) {
     open(proj.id);
   };
 
+  const importCSV = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const rows = parseCSV(String(reader.result));
+        if (!rows.length) { toast("No rows found in the file", "error"); return; }
+        const header = rows[0].map((h) => h.trim().toLowerCase());
+        const idx = (names) => names.map((n) => header.indexOf(n)).find((i) => i >= 0);
+        const ci = { name: idx(["name", "package", "package name"]), partNumber: idx(["partnumber", "part number", "part no", "part no."]), partName: idx(["partname", "part name"]), customer: idx(["customer"]), revision: idx(["revision", "rev"]), level: idx(["level", "submission level"]) };
+        if (ci.name == null && ci.partNumber == null) { toast("CSV needs at least a name or part number column", "error"); return; }
+        const made = [];
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r]; if (!row || row.every((c) => !c.trim())) continue;
+          const g = (k) => (ci[k] != null && ci[k] >= 0 ? (row[ci[k]] || "").trim() : "");
+          const name = g("name") || g("partNumber") || `Package ${r}`;
+          made.push({
+            id: nextId(), name, partNumber: g("partNumber") || "TBD", partName: g("partName") || name,
+            customer: g("customer") || CUSTOMER_CO, supplier: user.company, revision: g("revision") || "A",
+            level: Number(g("level")) || 3, status: "draft", submission: null, owner: user.name,
+            elements: blankElements(), due: dueIn(30), activity: [evt(`Imported from CSV by ${user.name}`)],
+          });
+        }
+        if (!made.length) { toast("No valid rows to import", "error"); return; }
+        setProjects((ps) => [...made, ...ps]);
+        toast(`Imported ${made.length} package${made.length === 1 ? "" : "s"}`);
+      } catch (err) { toast("Could not read that CSV file", "error"); }
+    };
+    reader.readAsText(file);
+  };
+
+  const downloadTemplate = () => {
+    const csv = "Name,Part Number,Part Name,Customer,Revision,Level\nFront Bracket,FB-1001-A,Front mounting bracket,Meridian Motors,A,3\nOil Cap,OC-2050-B,Oil filler cap,Meridian Motors,B,3\n";
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "ppap_import_template.csv"; document.body.appendChild(a); a.click(); a.remove();
+  };
+
   const del = async (id) => {
     if (await confirmDialog({ title: "Delete PPAP package", body: "Are you sure you want to delete this PPAP package?", confirmLabel: "Delete", danger: true })) {
       setProjects((ps) => ps.filter((p) => p.id !== id));
@@ -1058,12 +1269,14 @@ function ProjectsList({ user, projects, setProjects, updateProject, open }) {
     }
   };
 
-  const submit = (p) => { updateProject(p.id, (pr) => withEvent({ ...pr, status: "submitted", submission: { status: "pending", comments: "" } }, "Submitted for approval")); toast("Submitted to customer"); };
+  const submit = (p) => { updateProject(p.id, (pr) => withEvent({ ...pr, status: "submitted", submission: { status: "pending", comments: "" } }, "Submitted for approval")); toast("Submitted to customer"); notifyStatus(p, "submitted"); };
   const moveStatus = (id, status) => {
+    const p = projects.find((x) => x.id === id);
     updateProject(id, (pr) => withEvent({
       ...pr, status,
       submission: status === "submitted" ? { status: "pending", comments: "" } : status === "approved" ? { ...(pr.submission || {}), status: "approved" } : status === "rejected" ? { ...(pr.submission || {}), status: "rejected" } : null,
     }, `Moved to ${STATUS_FLOW.find((s) => s.key === status)?.label || status}`));
+    if (p && ["submitted", "approved", "rejected"].includes(status)) notifyStatus(p, status, { by: user.name });
   };
 
   const term = q.trim().toLowerCase();
@@ -1081,10 +1294,20 @@ function ProjectsList({ user, projects, setProjects, updateProject, open }) {
           <p className="mt-0.5 text-sm text-slate-500">{projects.length} package{projects.length === 1 ? "" : "s"} across {SUPPLIER_CO} and {CUSTOMER_CO}</p>
         </div>
         {canBuild && (
-          <button onClick={() => setCreating(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-            <Plus size={16} /> New package
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={downloadTemplate} title="Download CSV template" className="hidden items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-50 sm:flex">
+              <Download size={15} /> Template
+            </button>
+            <button onClick={() => csvRef.current?.click()}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+              <Upload size={15} /> Import CSV
+            </button>
+            <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { importCSV(e.target.files[0]); e.target.value = ""; }} />
+            <button onClick={() => setCreating(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+              <Plus size={16} /> New package
+            </button>
+          </div>
         )}
       </div>
       {creating && <CreateProject onCreate={create} onCancel={() => setCreating(false)} />}
@@ -1369,8 +1592,9 @@ function ProjectView({ user, project, updateProject, openElement, back }) {
   const [editing, setEditing] = useState(false);
   const saveEdits = (form) => { updateProject(project.id, (pr) => withEvent({ ...pr, ...form }, "Package details updated")); setEditing(false); toast("Package details updated"); };
 
-  const submit = () => { updateProject(project.id, (pr) => withEvent({ ...pr, status: "submitted", submission: { status: "pending", comments: "" } }, "Submitted to customer")); toast("Submitted to customer"); };
-  const decide = (status) => { updateProject(project.id, (pr) => withEvent({ ...pr, status, submission: { ...(pr.submission || {}), status, comments: reviewNote, by: user.name } }, status === "approved" ? `Approved by ${user.name}` : `Returned for changes by ${user.name}`)); toast(status === "approved" ? "Package approved" : "Returned to supplier", status === "approved" ? "success" : "info"); };
+  const submit = () => { updateProject(project.id, (pr) => withEvent({ ...pr, status: "submitted", submission: { status: "pending", comments: "" } }, "Submitted to customer")); toast("Submitted to customer"); notifyStatus(project, "submitted"); };
+  const decide = (status, sign) => { const signedBy = sign?.name || user.name; updateProject(project.id, (pr) => withEvent({ ...pr, status, submission: { ...(pr.submission || {}), status, comments: reviewNote, by: signedBy, signature: sign?.dataUrl, signedAt: sign?.date } }, status === "approved" ? `Approved by ${signedBy}` : `Returned for changes by ${signedBy}`)); toast(status === "approved" ? "Package approved" : "Returned to supplier", status === "approved" ? "success" : "info"); notifyStatus(project, status, { by: signedBy, comments: reviewNote }); };
+  const approveWithSign = async () => { const s = await requestSignature({ title: "Sign to approve", subtitle: `Approve ${project.name} on behalf of ${project.customer}.`, confirmLabel: "Sign & approve", defaultName: user.name }); if (s) decide("approved", s); };
   const reopen = () => { updateProject(project.id, (pr) => withEvent({ ...pr, status: "draft" }, "Reopened for edits")); toast("Reopened for edits", "info"); };
 
   return (
@@ -1522,9 +1746,9 @@ function ProjectView({ user, project, updateProject, openElement, back }) {
                 placeholder="Review comments (required to return the package)…"
                 className="mb-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
               <div className="flex gap-2">
-                <button onClick={() => decide("approved")}
+                <button onClick={approveWithSign}
                   className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
-                  <CheckCircle2 size={16} /> Approve
+                  <PenLine size={16} /> Sign &amp; approve
                 </button>
                 <button onClick={() => reviewNote.trim() && decide("rejected")} disabled={!reviewNote.trim()}
                   className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40">
@@ -1597,11 +1821,33 @@ function StageStepper({ status }) {
 }
 
 /* --------------------------- element editor --------------------------- */
-function ElementFiles({ files, owner, canEdit, onUpload, onReplace, onAssign }) {
+function ElementFiles({ user, files, owner, canEdit, onAdd, onAssign }) {
   const [hist, setHist] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [drag, setDrag] = useState(false);
+  const inputRef = React.useRef(null);
+  const replaceRef = React.useRef(null);
   const sorted = [...files].sort((a, b) => (b.version || 1) - (a.version || 1));
   const latest = sorted[0];
   const supplierUsers = USERS.filter((u) => u.company === SUPPLIER_CO);
+
+  const ingest = (file, asName) => {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { toast("File is larger than 8 MB; please use a smaller file in the demo", "error"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      onAdd({ name: asName || file.name, size: file.size, type: file.type, dataUrl: reader.result });
+      toast(`Uploaded ${asName || file.name}`);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const download = (f) => {
+    if (!f.dataUrl) { toast("This is seeded sample metadata; upload a real file to download it", "info"); return; }
+    const a = document.createElement("a"); a.href = f.dataUrl; a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+  };
+  const canPreview = (f) => f.dataUrl && (f.type === "application/pdf" || (f.type || "").startsWith("image/"));
+
   return (
     <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
@@ -1615,30 +1861,44 @@ function ElementFiles({ files, owner, canEdit, onUpload, onReplace, onAssign }) 
           </select>
         </label>
       </div>
+
       {latest ? (
         <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2.5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded bg-blue-50 text-blue-600"><FileText size={16} /></span>
-            <div>
-              <p className="text-sm font-medium text-slate-800">{latest.name}</p>
-              <p className="text-xs text-slate-400">Version {latest.version || 1} · {latest.at || "-"}{latest.by ? ` · ${latest.by}` : ""}</p>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-blue-50 text-blue-600"><FileText size={16} /></span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-slate-800">{latest.name}</p>
+              <p className="text-xs text-slate-400">v{latest.version || 1} · {latest.at || "-"}{latest.by ? ` · ${latest.by}` : ""}{latest.size ? ` · ${(latest.size / 1024).toFixed(0)} KB` : ""}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <button onClick={() => toast("Download starts in the deployed app", "info")} title="Download" className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><Download size={15} /></button>
+          <div className="flex shrink-0 items-center gap-1">
+            {canPreview(latest) && <button onClick={() => setPreview(latest)} className="rounded px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50">View</button>}
+            <button onClick={() => download(latest)} title="Download" className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><Download size={15} /></button>
             <button onClick={() => setHist(true)} className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">History ({files.length})</button>
           </div>
         </div>
       ) : (
         <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-sm text-slate-400">No file uploaded yet.</p>
       )}
+
       {canEdit && (
-        <div className="mt-3 flex gap-2">
-          <button onClick={onUpload} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><Upload size={15} /> Upload</button>
-          {latest && <button onClick={onReplace} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><RotateCcw size={15} /> Replace</button>}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); ingest(e.dataTransfer.files[0]); }}
+          className={`mt-3 flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-4 py-5 text-center transition ${drag ? "border-blue-400 bg-blue-50" : "border-slate-200"}`}>
+          <Upload size={18} className="mb-1 text-slate-400" />
+          <p className="text-xs text-slate-500">Drag a PDF or image here, or</p>
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => inputRef.current?.click()} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><Upload size={14} /> Upload</button>
+            {latest && <button onClick={() => replaceRef.current?.click()} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><RotateCcw size={14} /> Replace latest</button>}
+          </div>
+          <input ref={inputRef} type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { ingest(e.target.files[0]); e.target.value = ""; }} />
+          <input ref={replaceRef} type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { ingest(e.target.files[0], latest?.name); e.target.value = ""; }} />
         </div>
       )}
-      <p className="mt-2 text-[11px] text-slate-400">File contents are not stored in this demo. Metadata and version history are simulated.</p>
+      <p className="mt-2 text-[11px] text-slate-400">Uploaded files stay in your browser for this session. Seeded sample files show metadata only.</p>
+
       {hist && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setHist(false)}>
           <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -1649,11 +1909,33 @@ function ElementFiles({ files, owner, canEdit, onUpload, onReplace, onAssign }) 
             <ul className="space-y-2">
               {sorted.map((f, i) => (
                 <li key={i} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
-                  <span><span className="font-medium text-slate-800">v{f.version || 1}</span> <span className="font-mono text-xs text-slate-500">{f.name}</span></span>
-                  <span className="text-xs text-slate-400">{f.at || "-"}{f.by ? ` · ${f.by}` : ""}</span>
+                  <span className="min-w-0"><span className="font-medium text-slate-800">v{f.version || 1}</span> <span className="font-mono text-xs text-slate-500">{f.name}</span></span>
+                  <span className="flex items-center gap-2 text-xs text-slate-400">
+                    {f.at || "-"}{f.by ? ` · ${f.by}` : ""}
+                    {canPreview(f) && <button onClick={() => { setHist(false); setPreview(f); }} className="text-blue-600 hover:underline">view</button>}
+                  </span>
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+      )}
+
+      {preview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4" onClick={() => setPreview(null)}>
+          <div className="flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
+              <span className="truncate text-sm font-medium text-slate-800">{preview.name} <span className="font-normal text-slate-400">v{preview.version || 1}</span></span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => download(preview)} title="Download" className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><Download size={16} /></button>
+                <button onClick={() => setPreview(null)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><XCircle size={18} /></button>
+              </div>
+            </div>
+            <div className="flex-1 bg-slate-100">
+              {preview.type === "application/pdf"
+                ? <iframe title={preview.name} src={preview.dataUrl} className="h-full w-full" />
+                : <div className="flex h-full items-center justify-center p-4"><img src={preview.dataUrl} alt={preview.name} className="max-h-full max-w-full object-contain" /></div>}
+            </div>
           </div>
         </div>
       )}
@@ -1688,11 +1970,9 @@ function ElementEditor({ user, project, updateProject, elementId, back }) {
   const roleDot = (role) => roleOrg(role) === "customer" ? "bg-emerald-500" : "bg-blue-500";
 
   const files = state.data?.files || [];
-  const today = () => new Date().toISOString().slice(0, 10);
   const nextVersion = () => (files.length ? Math.max(...files.map((f) => f.version || 1)) + 1 : 1);
   const setFiles = (next) => setData({ ...state.data, files: next });
-  const uploadFile = () => { const v = nextVersion(); setFiles([...files, { name: `${el.id}_v${v}.pdf`, size: 130000, version: v, at: today(), by: user.name }]); toast(`Uploaded version ${v}`); };
-  const replaceFile = () => { if (!files.length) return uploadFile(); const latest = [...files].sort((a, b) => (b.version || 1) - (a.version || 1))[0]; const v = nextVersion(); setFiles([...files, { name: latest.name, size: 130000, version: v, at: today(), by: user.name }]); toast(`Replaced with version ${v}`); };
+  const addFile = (meta) => setFiles([...files, { version: nextVersion(), at: new Date().toISOString().slice(0, 10), by: user.name, ...meta }]);
   const assignOwner = (name) => setData({ ...state.data, owner: name });
 
   return (
@@ -1718,11 +1998,11 @@ function ElementEditor({ user, project, updateProject, elementId, back }) {
       )}
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        {el.kind === "fmea" && <FmeaEditor data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
+        {el.kind === "fmea" && <FmeaEditor project={project} data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
         {el.kind === "dimensional" && <DimensionalEditor data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
-        {el.kind === "psw" && <PswEditor project={project} data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
-        {el.kind === "flow" && <ProcessFlowEditor data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
-        {el.kind === "controlplan" && <ControlPlanEditor data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
+        {el.kind === "psw" && <PswEditor project={project} data={state.data} setData={setData} readOnly={fieldsReadOnly} user={user} />}
+        {el.kind === "flow" && <ProcessFlowEditor project={project} data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
+        {el.kind === "controlplan" && <ControlPlanEditor project={project} data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
         {el.kind === "msa" && <MsaEditor data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
         {el.kind === "capability" && <CapabilityEditor data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
         {el.kind === "material" && <MaterialEditor data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
@@ -1730,8 +2010,8 @@ function ElementEditor({ user, project, updateProject, elementId, back }) {
         {el.kind === "upload" && <UploadEditor data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
       </div>
 
-      <ElementFiles files={files} owner={state.data?.owner} canEdit={!fieldsReadOnly}
-        onUpload={uploadFile} onReplace={replaceFile} onAssign={assignOwner} />
+      <ElementFiles user={user} files={files} owner={state.data?.owner} canEdit={!fieldsReadOnly}
+        onAdd={addFile} onAssign={assignOwner} />
 
       {isCEA ? (
         <div className="mt-4">
@@ -1799,10 +2079,14 @@ function rpnColor(rpn) {
   if (rpn >= 100) return "bg-amber-100 text-amber-700";
   return "bg-emerald-100 text-emerald-700";
 }
-function FmeaEditor({ data, setData, readOnly }) {
+function processSteps(project) {
+  return project?.elements?.process_flow_diagram?.data?.steps || [];
+}
+function FmeaEditor({ project, data, setData, readOnly }) {
   const rows = data.rows || [];
+  const steps = processSteps(project);
   const update = (id, key, val) => setData({ ...data, rows: rows.map((r) => (r.id === id ? { ...r, [key]: val } : r)) });
-  const addRow = () => setData({ ...data, rows: [...rows, { id: Date.now(), item: "", fn: "", mode: "", effect: "", sev: 5, cause: "", occ: 5, ctrl: "", det: 5 }] });
+  const addRow = () => setData({ ...data, rows: [...rows, { id: Date.now(), item: "", fn: "", mode: "", effect: "", sev: 5, cause: "", occ: 5, ctrl: "", det: 5, stepId: "" }] });
   const removeRow = (id) => setData({ ...data, rows: rows.filter((r) => r.id !== id) });
   return (
     <div>
@@ -1810,11 +2094,18 @@ function FmeaEditor({ data, setData, readOnly }) {
         <Gauge size={16} className="text-blue-500" />
         Risk Priority Number recalculates live as you change Severity, Occurrence, and Detection.
       </div>
+      {steps.length > 0 && (
+        <div className="mb-3 flex items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          <Workflow size={13} /> Linked to the Process Flow Diagram. Tie each failure mode to the process step where it occurs.
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
-              <th className="px-2 py-2">Item / Function</th><th className="px-2 py-2">Failure mode</th><th className="px-2 py-2">Effect</th>
+              <th className="px-2 py-2">Item / Function</th>
+              {steps.length > 0 && <th className="px-2 py-2">Process step</th>}
+              <th className="px-2 py-2">Failure mode</th><th className="px-2 py-2">Effect</th>
               <th className="px-2 py-2 text-center">Sev</th><th className="px-2 py-2 text-center">Occ</th><th className="px-2 py-2 text-center">Det</th>
               <th className="px-2 py-2 text-center">RPN</th>{!readOnly && <th />}
             </tr>
@@ -1828,6 +2119,15 @@ function FmeaEditor({ data, setData, readOnly }) {
                     <div className="mb-1"><CellInput value={r.item} onChange={(e) => update(r.id, "item", e.target.value)} disabled={readOnly} placeholder="Item" w="w-36" /></div>
                     <CellInput value={r.fn} onChange={(e) => update(r.id, "fn", e.target.value)} disabled={readOnly} placeholder="Function" w="w-36" small />
                   </td>
+                  {steps.length > 0 && (
+                    <td className="px-2 py-2">
+                      <select value={r.stepId || ""} onChange={(e) => update(r.id, "stepId", e.target.value)} disabled={readOnly}
+                        className="rounded border border-slate-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none disabled:bg-slate-50">
+                        <option value="">Unlinked</option>
+                        {steps.map((s, i) => <option key={s.id} value={s.id}>{String(i + 1).padStart(2, "0")} {s.name || "Step"}</option>)}
+                      </select>
+                    </td>
+                  )}
                   <td className="px-2 py-2"><CellInput value={r.mode} onChange={(e) => update(r.id, "mode", e.target.value)} disabled={readOnly} placeholder="Mode" /></td>
                   <td className="px-2 py-2"><CellInput value={r.effect} onChange={(e) => update(r.id, "effect", e.target.value)} disabled={readOnly} placeholder="Effect" /></td>
                   <td className="px-2 py-2 text-center"><ScoreSelect value={r.sev} onChange={(e) => update(r.id, "sev", Number(e.target.value))} disabled={readOnly} /></td>
@@ -1838,7 +2138,7 @@ function FmeaEditor({ data, setData, readOnly }) {
                 </tr>
               );
             })}
-            {rows.length === 0 && <tr><td colSpan={8} className="px-2 py-6 text-center text-sm text-slate-400">No failure modes yet.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={steps.length > 0 ? 9 : 8} className="px-2 py-6 text-center text-sm text-slate-400">No failure modes yet.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1898,20 +2198,39 @@ function DimensionalEditor({ data, setData, readOnly }) {
   );
 }
 
-function PswEditor({ project, data, setData, readOnly }) {
+function PswEditor({ project, data, setData, readOnly, user }) {
   const field = (label, value) => (
-    <div><p className="text-xs uppercase tracking-wide text-slate-400">{label}</p><p className="font-mono text-sm text-slate-800">{value}</p></div>
+    <div><p className="text-[11px] uppercase tracking-wide text-slate-400">{label}</p><p className="font-mono text-sm text-slate-800">{value || "-"}</p></div>
+  );
+  const sub = project.submission;
+  const signWarrant = async () => {
+    const s = await requestSignature({ title: "Sign Part Submission Warrant", subtitle: "Affirm the declaration below on behalf of the supplier.", confirmLabel: "Sign warrant", defaultName: user?.name });
+    if (s) setData({ ...data, supplierSign: s, declared: true });
+  };
+  const SigBlock = ({ label, sign, statusText, tone }) => (
+    <div className="rounded-lg border border-slate-200 p-3">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      {sign ? (
+        <>
+          {sign.dataUrl ? <img src={sign.dataUrl} alt="signature" className="h-12 w-auto" /> : <p className="font-[cursive] text-lg text-slate-800">{sign.name}</p>}
+          <p className="mt-1 text-xs text-slate-600">{sign.name} · {sign.date}</p>
+        </>
+      ) : (
+        <p className={`py-3 text-sm ${tone || "text-slate-400"}`}>{statusText || "Not signed"}</p>
+      )}
+    </div>
   );
   return (
     <div>
-      <div className="mb-4 grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-4 sm:grid-cols-3">
+      <div className="mb-3 flex items-center gap-2 text-sm text-slate-500"><FileText size={16} className="text-blue-500" /> Part Submission Warrant (PSW) - the formal declaration that the submitted parts meet all requirements.</div>
+      <div className="mb-4 grid grid-cols-2 gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
         {field("Part number", project.partNumber)}{field("Part name", project.partName)}{field("Revision", project.revision)}
         {field("Supplier", project.supplier)}{field("Customer", project.customer)}{field("Submission level", project.level)}
       </div>
       <label className="mb-1 block text-xs font-medium text-slate-600">Reason for submission</label>
       <select disabled={readOnly} value={data.reason || ""} onChange={(e) => setData({ ...data, reason: e.target.value })}
         className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50">
-        <option value="">Select…</option><option>Initial submission</option><option>Engineering change</option>
+        <option value="">Select a reason</option><option>Initial submission</option><option>Engineering change</option>
         <option>Tooling transfer / change</option><option>Correction of discrepancy</option>
       </select>
       <label className="flex items-start gap-2 text-sm text-slate-700">
@@ -1919,6 +2238,21 @@ function PswEditor({ project, data, setData, readOnly }) {
           className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
         I affirm the samples represent parts made from production tooling and processes, and that results meet all drawing and specification requirements.
       </label>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div>
+          <SigBlock label="Supplier authorized signature" sign={data.supplierSign} />
+          {!readOnly && (
+            <button onClick={signWarrant} className="mt-2 flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+              <PenLine size={15} /> {data.supplierSign ? "Re-sign warrant" : "Sign warrant"}
+            </button>
+          )}
+        </div>
+        <SigBlock label="Customer disposition"
+          sign={sub?.status === "approved" ? { name: sub.by || project.customer, date: sub.signedAt || sub.date || "", dataUrl: sub.signature } : null}
+          statusText={sub?.status === "rejected" ? `Returned for changes${sub.by ? " by " + sub.by : ""}` : "Pending customer review"}
+          tone={sub?.status === "rejected" ? "text-rose-600" : "text-amber-600"} />
+      </div>
     </div>
   );
 }
@@ -1960,8 +2294,11 @@ function UploadEditor({ data, setData, readOnly }) {
 /* -------- additional element editors (Process Flow, Control Plan, MSA, ---------
  * Cp/Cpk capability, Material/Performance results, Customer-Specific Reqs) ----- */
 
-function ProcessFlowEditor({ data, setData, readOnly }) {
+function ProcessFlowEditor({ project, data, setData, readOnly }) {
   const steps = data.steps || [];
+  const fmeaRows = [...(project?.elements?.process_fmea?.data?.rows || []), ...(project?.elements?.design_fmea?.data?.rows || [])];
+  const ctrlRows = project?.elements?.control_plan?.data?.rows || [];
+  const linkCounts = (id) => ({ fmea: fmeaRows.filter((r) => r.stepId === id).length, ctrl: ctrlRows.filter((r) => r.stepId === id).length });
   const update = (id, key, val) => setData({ ...data, steps: steps.map((s) => (s.id === id ? { ...s, [key]: val } : s)) });
   const add = () => setData({ ...data, steps: [...steps, { id: Date.now(), name: "", type: "Operation", desc: "" }] });
   const remove = (id) => setData({ ...data, steps: steps.filter((s) => s.id !== id) });
@@ -1971,30 +2308,35 @@ function ProcessFlowEditor({ data, setData, readOnly }) {
   };
   return (
     <div>
-      <p className="mb-3 text-sm text-slate-500">Ordered manufacturing sequence. Each step is typed (operation, inspection, transport, storage).</p>
+      <p className="mb-3 text-sm text-slate-500">Ordered manufacturing sequence. Each step is typed, and shows how many FMEA failure modes and control-plan items reference it.</p>
       <div className="space-y-2">
-        {steps.map((s, i) => (
-          <div key={s.id} className="flex items-start gap-2 rounded-lg border border-slate-200 p-2.5">
-            <span className="mt-1 font-mono text-xs text-slate-400">{String(i + 1).padStart(2, "0")}</span>
-            <div className="flex-1 space-y-1.5">
-              <div className="flex gap-2">
-                <CellInput value={s.name} onChange={(e) => update(s.id, "name", e.target.value)} disabled={readOnly} placeholder="Step name" w="w-48" />
-                <select value={s.type} onChange={(e) => update(s.id, "type", e.target.value)} disabled={readOnly}
-                  className="rounded border border-slate-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-50">
-                  {["Operation", "Inspection", "Transport", "Storage", "Delay"].map((t) => <option key={t}>{t}</option>)}
-                </select>
+        {steps.map((s, i) => {
+          const lc = linkCounts(s.id);
+          return (
+            <div key={s.id} className="flex items-start gap-2 rounded-lg border border-slate-200 p-2.5">
+              <span className="mt-1 font-mono text-xs text-slate-400">{String(i + 1).padStart(2, "0")}</span>
+              <div className="flex-1 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CellInput value={s.name} onChange={(e) => update(s.id, "name", e.target.value)} disabled={readOnly} placeholder="Step name" w="w-48" />
+                  <select value={s.type} onChange={(e) => update(s.id, "type", e.target.value)} disabled={readOnly}
+                    className="rounded border border-slate-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-50">
+                    {["Operation", "Inspection", "Transport", "Storage", "Delay"].map((t) => <option key={t}>{t}</option>)}
+                  </select>
+                  <span className={`rounded px-1.5 py-0.5 text-[11px] ${lc.fmea ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-400"}`}>FMEA {lc.fmea}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-[11px] ${lc.ctrl ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-400"}`}>Controls {lc.ctrl}</span>
+                </div>
+                <CellInput value={s.desc} onChange={(e) => update(s.id, "desc", e.target.value)} disabled={readOnly} placeholder="Description" w="w-full" small />
               </div>
-              <CellInput value={s.desc} onChange={(e) => update(s.id, "desc", e.target.value)} disabled={readOnly} placeholder="Description" w="w-full" small />
+              {!readOnly && (
+                <div className="flex flex-col">
+                  <button onClick={() => move(i, -1)} className="text-slate-300 hover:text-slate-600">↑</button>
+                  <button onClick={() => move(i, 1)} className="text-slate-300 hover:text-slate-600">↓</button>
+                  <button onClick={() => remove(s.id)} className="text-slate-300 hover:text-rose-500"><Trash2 size={14} /></button>
+                </div>
+              )}
             </div>
-            {!readOnly && (
-              <div className="flex flex-col">
-                <button onClick={() => move(i, -1)} className="text-slate-300 hover:text-slate-600">↑</button>
-                <button onClick={() => move(i, 1)} className="text-slate-300 hover:text-slate-600">↓</button>
-                <button onClick={() => remove(s.id)} className="text-slate-300 hover:text-rose-500"><Trash2 size={14} /></button>
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
         {steps.length === 0 && <p className="text-center text-sm text-slate-400">No process steps yet.</p>}
       </div>
       {!readOnly && <button onClick={add} className="mt-3 flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><Plus size={15} /> Add step</button>}
@@ -2002,18 +2344,30 @@ function ProcessFlowEditor({ data, setData, readOnly }) {
   );
 }
 
-function ControlPlanEditor({ data, setData, readOnly }) {
+function ControlPlanEditor({ project, data, setData, readOnly }) {
   const rows = data.rows || [];
+  const steps = processSteps(project);
   const update = (id, key, val) => setData({ ...data, rows: rows.map((r) => (r.id === id ? { ...r, [key]: val } : r)) });
-  const add = () => setData({ ...data, rows: [...rows, { id: Date.now(), characteristic: "", spec: "", method: "", freq: "", reaction: "" }] });
+  const add = () => setData({ ...data, rows: [...rows, { id: Date.now(), characteristic: "", spec: "", method: "", freq: "", reaction: "", stepId: "" }] });
   const remove = (id) => setData({ ...data, rows: rows.filter((r) => r.id !== id) });
+  const covered = new Set(rows.map((r) => r.stepId).filter(Boolean));
+  const uncovered = steps.filter((s) => !covered.has(s.id));
   return (
     <div>
       <p className="mb-3 text-sm text-slate-500">How each characteristic is controlled, measured, and what happens when it's out of spec.</p>
+      {steps.length > 0 && (
+        <div className={`mb-3 flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs ${uncovered.length ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+          <Workflow size={13} />
+          {uncovered.length
+            ? `Controls cover ${covered.size} of ${steps.length} process steps. Not yet controlled: ${uncovered.map((s) => s.name || "Step").join(", ")}.`
+            : `All ${steps.length} process steps have at least one control.`}
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
+              {steps.length > 0 && <th className="px-2 py-2">Process step</th>}
               <th className="px-2 py-2">Characteristic</th><th className="px-2 py-2">Specification</th><th className="px-2 py-2">Method</th>
               <th className="px-2 py-2">Frequency</th><th className="px-2 py-2">Reaction plan</th>{!readOnly && <th />}
             </tr>
@@ -2021,6 +2375,15 @@ function ControlPlanEditor({ data, setData, readOnly }) {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-b border-slate-100">
+                {steps.length > 0 && (
+                  <td className="px-2 py-2">
+                    <select value={r.stepId || ""} onChange={(e) => update(r.id, "stepId", e.target.value)} disabled={readOnly}
+                      className="rounded border border-slate-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none disabled:bg-slate-50">
+                      <option value="">Unlinked</option>
+                      {steps.map((s, i) => <option key={s.id} value={s.id}>{String(i + 1).padStart(2, "0")} {s.name || "Step"}</option>)}
+                    </select>
+                  </td>
+                )}
                 <td className="px-2 py-2"><CellInput value={r.characteristic} onChange={(e) => update(r.id, "characteristic", e.target.value)} disabled={readOnly} placeholder="e.g. Bore Ø" w="w-32" /></td>
                 <td className="px-2 py-2"><CellInput value={r.spec} onChange={(e) => update(r.id, "spec", e.target.value)} disabled={readOnly} placeholder="12.0 ±0.02" w="w-28" /></td>
                 <td className="px-2 py-2"><CellInput value={r.method} onChange={(e) => update(r.id, "method", e.target.value)} disabled={readOnly} placeholder="CMM / gauge" w="w-28" /></td>
@@ -2029,7 +2392,7 @@ function ControlPlanEditor({ data, setData, readOnly }) {
                 {!readOnly && <td className="px-2 py-2 text-center"><button onClick={() => remove(r.id)} className="text-slate-300 hover:text-rose-500"><Trash2 size={15} /></button></td>}
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={6} className="px-2 py-6 text-center text-sm text-slate-400">No control items yet.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={steps.length > 0 ? 7 : 6} className="px-2 py-6 text-center text-sm text-slate-400">No control items yet.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -2083,35 +2446,98 @@ function MsaEditor({ data, setData, readOnly }) {
 
 function CapabilityEditor({ data, setData, readOnly }) {
   const set = (k) => (e) => setData({ ...data, [k]: e.target.value });
-  const usl = parseFloat(data.usl), lsl = parseFloat(data.lsl), mean = parseFloat(data.mean), sd = parseFloat(data.sd);
-  const ok = [usl, lsl, mean, sd].every((v) => !isNaN(v)) && sd > 0;
-  const cp = ok ? (usl - lsl) / (6 * sd) : null;
-  const cpk = ok ? Math.min((usl - mean) / (3 * sd), (mean - lsl) / (3 * sd)) : null;
-  const verdict = cpk == null ? null : cpk >= 1.67 ? ["Excellent", "text-emerald-700 bg-emerald-100"] : cpk >= 1.33 ? ["Capable", "text-emerald-700 bg-emerald-100"] : cpk >= 1.0 ? ["Marginal", "text-amber-700 bg-amber-100"] : ["Not capable", "text-rose-700 bg-rose-100"];
-  const Inp = ({ k, label }) => (
+  const readingsText = Array.isArray(data.readings) ? data.readings.join(", ") : (data.readings || "");
+  const st = spcStats(data);
+  const verdict = !st ? null : st.cpk >= 1.67 ? ["Excellent", "text-emerald-700 bg-emerald-100"] : st.cpk >= 1.33 ? ["Capable", "text-emerald-700 bg-emerald-100"] : st.cpk >= 1.0 ? ["Marginal", "text-amber-700 bg-amber-100"] : ["Not capable", "text-rose-700 bg-rose-100"];
+
+  // control chart series
+  const lsl = parseFloat(data.lsl), usl = parseFloat(data.usl), target = parseFloat(data.target);
+  const chart = st && st.xs.length ? st.xs.map((v, i) => ({ i: i + 1, v })) : [];
+  const outOfCtrl = st ? st.xs.filter((v) => v > st.ucl || v < st.lcl).length : 0;
+
+  // histogram bins
+  let bins = [];
+  let lslLabel = null, uslLabel = null;
+  if (st && st.xs.length) {
+    const lo = Math.min(st.lcl, lsl, ...st.xs), hi = Math.max(st.ucl, usl, ...st.xs);
+    const k = 9, w = (hi - lo) / k || 1;
+    bins = Array.from({ length: k }, (_, b) => ({ x: lo + w * (b + 0.5), label: (lo + w * (b + 0.5)).toFixed(3), count: 0 }));
+    st.xs.forEach((v) => { let idx = Math.floor((v - lo) / w); if (idx >= k) idx = k - 1; if (idx < 0) idx = 0; bins[idx].count++; });
+    const nearest = (target) => bins.reduce((best, b) => (Math.abs(b.x - target) < Math.abs(bins[best].x - target) ? bins.indexOf(b) : best), 0);
+    if (!isNaN(lsl)) lslLabel = bins[nearest(lsl)].label;
+    if (!isNaN(usl)) uslLabel = bins[nearest(usl)].label;
+  }
+
+  const Inp = ({ k, label, ph }) => (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
-      <NumCell value={data[k] || ""} onChange={set(k)} disabled={readOnly} w="w-full" />
+      <NumCell value={data[k] || ""} onChange={set(k)} disabled={readOnly} w="w-full" placeholder={ph} />
     </label>
   );
+
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Gauge size={16} className="text-blue-500" /> Initial process capability - Cp and Cpk compute from the spec limits and process statistics.</div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Inp k="lsl" label="Lower spec (LSL)" />
-        <Inp k="usl" label="Upper spec (USL)" />
-        <Inp k="mean" label="Process mean (x̄)" />
-        <Inp k="sd" label="Std dev (σ)" />
+      <div className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Gauge size={16} className="text-blue-500" /> Initial process study. Enter the spec limits and individual measurements; Cpk, control limits, and the charts update automatically.</div>
+      <div className="grid grid-cols-3 gap-3">
+        <Inp k="lsl" label="Lower spec (LSL)" ph="11.98" />
+        <Inp k="target" label="Target" ph="12.00" />
+        <Inp k="usl" label="Upper spec (USL)" ph="12.02" />
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Metric label="Cp" value={cp != null ? cp.toFixed(2) : "-"} />
-        <Metric label="Cpk" value={cpk != null ? cpk.toFixed(2) : "-"} />
+      <label className="mt-3 block">
+        <span className="mb-1 block text-xs font-medium text-slate-600">Measurements (comma or space separated)</span>
+        <textarea value={readingsText} onChange={set("readings")} disabled={readOnly} rows={2}
+          placeholder="12.004 12.007 12.002 ..."
+          className="w-full rounded-lg border border-slate-300 p-2.5 font-mono text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50" />
+      </label>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Metric label="n" value={st ? st.n || st.xs.length || "-" : "-"} />
+        <Metric label="Cp" value={st ? st.cp.toFixed(2) : "-"} />
+        <Metric label="Cpk" value={st ? st.cpk.toFixed(2) : "-"} />
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <p className="text-xs text-slate-500">Verdict</p>
           {verdict ? <span className={`mt-1 inline-block rounded px-2 py-1 text-sm font-semibold ${verdict[1]}`}>{verdict[0]}</span> : <p className="text-slate-300">-</p>}
         </div>
       </div>
-      <p className="mt-3 text-xs text-slate-400">Cpk ≥ 1.33 is the common automotive threshold for a capable process.</p>
+
+      {st && chart.length > 0 && (
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="mb-1 flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-slate-700">Individuals control chart</h4>
+              <span className={`text-xs ${outOfCtrl ? "text-rose-600" : "text-emerald-600"}`}>{outOfCtrl ? `${outOfCtrl} out of control` : "In control"}</span>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={chart} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+                <XAxis dataKey="i" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
+                <Tooltip formatter={(v) => v.toFixed ? v.toFixed(4) : v} />
+                <ReferenceLine y={st.ucl} stroke="#ef4444" strokeDasharray="4 3" label={{ value: "UCL", position: "right", fontSize: 10, fill: "#ef4444" }} />
+                <ReferenceLine y={st.mean} stroke="#2563eb" strokeDasharray="4 3" label={{ value: "x̄", position: "right", fontSize: 10, fill: "#2563eb" }} />
+                <ReferenceLine y={st.lcl} stroke="#ef4444" strokeDasharray="4 3" label={{ value: "LCL", position: "right", fontSize: 10, fill: "#ef4444" }} />
+                <Line type="monotone" dataKey="v" stroke="#2563eb" strokeWidth={2}
+                  dot={(p) => { const oo = p.payload.v > st.ucl || p.payload.v < st.lcl; return <circle key={p.key ?? `${p.cx}-${p.cy}`} cx={p.cx} cy={p.cy} r={3.5} fill={oo ? "#ef4444" : "#2563eb"} stroke="#fff" strokeWidth={1} />; }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <h4 className="mb-1 text-sm font-semibold text-slate-700">Distribution vs. spec</h4>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={bins} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#94a3b8" }} axisLine={false} tickLine={false} interval={1} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={28} />
+                <Tooltip />
+                {lslLabel && <ReferenceLine x={lslLabel} stroke="#ef4444" label={{ value: "LSL", position: "top", fontSize: 10, fill: "#ef4444" }} />}
+                {uslLabel && <ReferenceLine x={uslLabel} stroke="#ef4444" label={{ value: "USL", position: "top", fontSize: 10, fill: "#ef4444" }} />}
+                <Bar dataKey="count" fill="#93c5fd" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+      <p className="mt-3 text-xs text-slate-400">Control limits use the moving-range estimate of sigma (MR-bar / 1.128). Cpk ≥ 1.33 is the common automotive threshold for a capable process.</p>
     </div>
   );
 }
@@ -2222,8 +2648,16 @@ function exportPSW(project) {
   row("Customer:", project.customer);
   row("Submission level:", project.level);
   row("Status:", project.status);
+  const pswData = project.elements?.part_submission_warrant?.data || {};
+  row("Reason for submission:", pswData.reason || "-");
 
-  y += 6;
+  y += 4;
+  doc.setFont("helvetica", "italic"); doc.setFontSize(8.5); doc.setTextColor(90);
+  const decl = doc.splitTextToSize("Declaration: the samples represent parts made from production tooling and processes, and results meet all drawing and specification requirements.", 178);
+  doc.text(decl, left, y); y += decl.length * 4 + 2;
+  doc.setTextColor(0);
+
+  y += 4;
   doc.setFont("helvetica", "bold"); doc.setFontSize(11);
   doc.text("Element completion", left, y); y += 7;
   doc.setFontSize(9);
@@ -2232,11 +2666,30 @@ function exportPSW(project) {
     if (!req.has(el.id)) return;
     const st = project.elements[el.id].status.replace("_", " ");
     doc.setFont("helvetica", "normal");
-    if (y > 275) { doc.addPage(); y = 20; }
+    if (y > 250) { doc.addPage(); y = 20; }
     doc.text(`${String(el.n).padStart(2, "0")}. ${el.name}`, left, y);
     doc.text(st, left + 120, y);
     y += 6;
   });
+
+  // signatures
+  if (y > 235) { doc.addPage(); y = 20; }
+  y += 8;
+  doc.setDrawColor(200); doc.line(left, y, left + 178, y); y += 8;
+  const sup = pswData.supplierSign;
+  const sub = project.submission;
+  const sigCol = (x, label, name, date, img) => {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.text(label, x, y);
+    if (img) { try { doc.addImage(img, "PNG", x, y + 3, 50, 16); } catch (e) {} }
+    else if (name) { doc.setFont("helvetica", "italic"); doc.setFontSize(13); doc.text(name, x, y + 14); }
+    doc.setDrawColor(150); doc.line(x, y + 22, x + 70, y + 22);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(90);
+    doc.text(`${name || "Not signed"}${date ? "   " + date : ""}`, x, y + 27);
+    doc.setTextColor(0);
+  };
+  sigCol(left, "Supplier authorized signature", sup?.name, sup?.date, sup?.dataUrl);
+  if (sub?.status === "approved") sigCol(left + 96, "Customer approval signature", sub.by, sub.signedAt || sub.date, sub.signature);
+  else sigCol(left + 96, "Customer disposition", sub?.status === "rejected" ? "Returned for changes" : "Pending review", "", null);
 
   doc.save(`PSW_${project.partNumber || "part"}.pdf`);
   toast("PSW exported as PDF");
@@ -2265,9 +2718,9 @@ function elementSummary(kind, data) {
     const ev = +data.ev, av = +data.av, pv = +data.pv, grr = Math.sqrt(ev * ev + av * av), tv = Math.sqrt(grr * grr + pv * pv);
     return tv > 0 ? `%GRR ${((grr / tv) * 100).toFixed(1)}%` : "";
   }
-  if (kind === "capability" && data.usl) {
-    const usl = +data.usl, lsl = +data.lsl, mean = +data.mean, sd = +data.sd;
-    if (sd > 0) return `Cpk ${Math.min((usl - mean) / (3 * sd), (mean - lsl) / (3 * sd)).toFixed(2)}`;
+  if (kind === "capability") {
+    const st = spcStats(data);
+    if (st) return `Cpk ${st.cpk.toFixed(2)}`;
   }
   if (kind === "psw" && data.reason) return data.reason;
   if (data.files?.length) return `${data.files.length} document(s)`;
@@ -2361,14 +2814,82 @@ function ScoreSelect({ value, onChange, disabled }) {
     </select>
   );
 }
-function NumCell({ value, onChange, disabled, w = "w-20" }) {
+function NumCell({ value, onChange, disabled, w = "w-20", placeholder }) {
   return (
-    <input value={value} onChange={onChange} disabled={disabled} inputMode="decimal"
+    <input value={value} onChange={onChange} disabled={disabled} inputMode="decimal" placeholder={placeholder}
       className={`${w} rounded border border-slate-200 px-2 py-1 text-center font-mono text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-50`} />
   );
 }
 
 /* ----------------------------- bits ----------------------------- */
+function SignaturePad({ onChange }) {
+  const ref = React.useRef(null);
+  const drawing = React.useRef(false);
+  const last = React.useRef(null);
+  const pt = (e) => {
+    const c = ref.current, r = c.getBoundingClientRect();
+    const t = e.touches && e.touches[0];
+    const cx = t ? t.clientX : e.clientX, cy = t ? t.clientY : e.clientY;
+    return { x: (cx - r.left) * (c.width / r.width), y: (cy - r.top) * (c.height / r.height) };
+  };
+  const down = (e) => { drawing.current = true; last.current = pt(e); };
+  const moveDraw = (e) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    const c = ref.current, ctx = c.getContext("2d"), p = pt(e);
+    ctx.strokeStyle = "#0f172a"; ctx.lineWidth = 2; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(last.current.x, last.current.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    last.current = p;
+  };
+  const up = () => { if (!drawing.current) return; drawing.current = false; onChange(ref.current.toDataURL("image/png")); };
+  const clear = () => { const c = ref.current; c.getContext("2d").clearRect(0, 0, c.width, c.height); onChange(null); };
+  return (
+    <div>
+      <canvas ref={ref} width={460} height={120}
+        onMouseDown={down} onMouseMove={moveDraw} onMouseUp={up} onMouseLeave={up}
+        onTouchStart={down} onTouchMove={moveDraw} onTouchEnd={up}
+        className="w-full cursor-crosshair touch-none rounded-lg border border-slate-300 bg-slate-50" />
+      <div className="mt-1 flex justify-between text-xs text-slate-400">
+        <span>Draw your signature above</span>
+        <button onClick={clear} className="hover:text-slate-700">Clear</button>
+      </div>
+    </div>
+  );
+}
+
+let signResolver = null;
+let signListener = null;
+function requestSignature(opts) {
+  return new Promise((resolve) => { signResolver = resolve; if (signListener) signListener(opts || {}); });
+}
+function SignHost() {
+  const [cfg, setCfg] = useState(null);
+  const [name, setName] = useState("");
+  const [sig, setSig] = useState(null);
+  useEffect(() => { signListener = (opts) => { setCfg(opts); setName(opts.defaultName || ""); setSig(null); }; return () => { signListener = null; }; }, []);
+  if (!cfg) return null;
+  const close = (result) => { setCfg(null); if (signResolver) { signResolver(result); signResolver = null; } };
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => close(null)}>
+      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-semibold text-slate-900">{cfg.title || "Sign"}</h3>
+        <p className="mb-3 mt-0.5 text-xs text-slate-500">{cfg.subtitle || "Type your name and draw your signature to authorize."}</p>
+        <label className="mb-1 block text-xs font-medium text-slate-600">Signed by</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name"
+          className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        <SignaturePad onChange={setSig} />
+        <div className="mt-4 flex gap-2">
+          <button onClick={() => name.trim() && close({ name: name.trim(), dataUrl: sig, date: new Date().toISOString().slice(0, 10) })}
+            disabled={!name.trim()}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40">
+            <PenLine size={15} /> {cfg.confirmLabel || "Sign"}
+          </button>
+          <button onClick={() => close(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function Field({ label, value, mono }) {
   return (
     <div>
