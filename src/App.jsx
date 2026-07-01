@@ -226,17 +226,21 @@ function Avatar({ name, role, size = 30 }) {
 
 /* --------------------------- persistence --------------------------- */
 const STORAGE_KEY = "ppap-demo-v1";
+const DATA_VERSION = 3;
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.v === DATA_VERSION) return parsed;
+    localStorage.removeItem(STORAGE_KEY); // saved data is from an older version - reseed
   } catch (e) { /* ignore */ }
   return null;
 }
 function saveState(state) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: DATA_VERSION, ...state }));
   } catch (e) { /* quota or privacy mode - demo still works in-session */ }
 }
 
