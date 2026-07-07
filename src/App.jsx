@@ -14,6 +14,14 @@ import { ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, LineChart, Lin
  *  (localStorage). No backend, no accounts, nothing shared.
  * ================================================================== */
 
+/* ---- launch configuration: fill these in before going live ---- */
+const SITE = {
+  waitlistEndpoint: "", // form endpoint, e.g. Formspree: "https://formspree.io/f/xxxxxxxx"
+  linkedinUrl: "",      // e.g. "https://www.linkedin.com/in/your-handle/"
+  contactEmail: "",     // waitlist fallback if no endpoint is set
+  version: "v1.1",
+};
+
 const ELEMENTS = [
   { id: "design_records", name: "Design Records", n: 1, desc: "Part drawings, specifications, and design documents", kind: "upload" },
   { id: "engineering_change_documents", name: "Engineering Change Documents", n: 2, desc: "Authorized engineering change documentation", kind: "upload" },
@@ -434,6 +442,7 @@ export default function App() {
   });
   const [route, setRoute] = useState({ view: "dashboard", projectId: null, elementId: null });
   const [guideOpen, setGuideOpen] = useState(true);
+  const [entered, setEntered] = useState(false); // landing page -> role picker
   const [users, setUsers] = useState(initial?.users || USERS);
 
   useEffect(() => {
@@ -453,7 +462,10 @@ export default function App() {
     }
   };
 
-  if (!user) return <Login onLogin={(u) => { setUser(u); setRoute({ view: "dashboard", projectId: null, elementId: null }); }} />;
+  if (!user) {
+    if (!entered) return <Landing onTryDemo={() => setEntered(true)} />;
+    return <Login onBack={() => setEntered(false)} onLogin={(u) => { setUser(u); setRoute({ view: "dashboard", projectId: null, elementId: null }); }} />;
+  }
 
   return (
     <div className="flex min-h-screen flex-col text-slate-800">
@@ -641,7 +653,7 @@ function DemoGuide({ role, projects, open, goProjects, goAnalytics, onDismiss })
   );
 }
 
-function Login({ onLogin }) {
+function Login({ onLogin, onBack }) {
   const roles = [
     { role: "supplier_admin", user: USERS[0], icon: Factory, accent: "blue", desc: "Create, edit, submit packages and manage your team" },
     { role: "supplier_member", user: USERS[1], icon: ClipboardCheck, accent: "blue", desc: "Build and submit PPAP packages" },
@@ -662,7 +674,9 @@ function Login({ onLogin }) {
             <BrandMark px={30} />
             <span className="text-sm font-semibold tracking-tight text-slate-900">PPAP Manager</span>
           </div>
-          <span className="text-xs text-slate-400">Internal demo environment</span>
+          {onBack
+            ? <button onClick={onBack} className="text-xs text-slate-400 transition hover:text-slate-600">← Back to overview</button>
+            : <span className="text-xs text-slate-400">Live demo</span>}
         </div>
       </header>
 
@@ -727,6 +741,300 @@ function RoleButton({ onClick, icon: Icon, accent, title, sub, hint }) {
   );
 }
 
+/* ----------------------------- landing ----------------------------- */
+function Landing({ onTryDemo }) {
+  const [email, setEmail] = useState("");
+  const [wl, setWl] = useState("idle"); // idle | sending | done
+  const joinWaitlist = async () => {
+    if (!/\S+@\S+\.\S+/.test(email)) { toast("Enter a valid work email", "error"); return; }
+    setWl("sending");
+    try {
+      const r = await fetch(SITE.waitlistEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ email, source: "ppap-manager-landing" }),
+      });
+      if (!r.ok) throw new Error("bad status");
+      setWl("done");
+    } catch (e) {
+      setWl("idle");
+      toast("Couldn't reach the signup service - please try again in a minute", "error");
+    }
+  };
+
+  const heroRows = [
+    { name: "Sensor Housing", pn: "SH-2045-A", status: "submitted", pct: 100 },
+    { name: "Cooling Module", pn: "CM-8871-B", status: "approved", pct: 100 },
+    { name: "Steering Bracket", pn: "SB-1180-A", status: "draft", pct: 33 },
+  ];
+  const faqs = [
+    { q: "Where does my data go?", a: "Nowhere. The demo runs entirely in your browser and stores everything locally on your machine. Close the tab and it's still there; clear your site data and it's gone. Nothing is sent to a server." },
+    { q: "Is this affiliated with AIAG?", a: "No. PPAP Manager references the PPAP 4th edition structure (the 18 elements and submission levels 1-5) but it is an independent tool, not endorsed by or affiliated with AIAG." },
+    { q: "What does it cost?", a: "The demo is free, with no account needed. Team workspaces with shared storage, permissions, and real email notifications are on the roadmap - the waitlist below hears about them first." },
+    { q: "Who built this?", a: "Chaitanya Patwardhan - a quality-engineering tool built by someone who has lived the spreadsheet-and-email version of this process." },
+  ];
+
+  return (
+    <div className="min-h-screen bg-white text-slate-800">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+          <div className="flex items-center gap-2.5">
+            <BrandMark px={30} />
+            <span className="text-sm font-semibold tracking-tight text-slate-900">PPAP Manager</span>
+          </div>
+          <nav className="hidden items-center gap-5 text-sm text-slate-500 sm:flex">
+            <a href="#features" className="transition hover:text-slate-900">Features</a>
+            <a href="#how" className="transition hover:text-slate-900">How it works</a>
+            <a href="#faq" className="transition hover:text-slate-900">FAQ</a>
+          </nav>
+          <button onClick={onTryDemo} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+            Try the demo
+          </button>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="hero-grid border-b border-slate-200">
+        <div className="mx-auto max-w-6xl px-6 pb-16 pt-14 sm:pt-20">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Production Part Approval Process</p>
+            <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-5xl">
+              PPAP approvals, out of the inbox.
+            </h1>
+            <p className="mt-4 text-lg leading-relaxed text-slate-600">
+              One shared place where suppliers build the 18-element package and customers review and
+              sign it - with the Cpk, Gage R&amp;R, and FMEA math computed as you type.
+            </p>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <button onClick={onTryDemo} className="rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                Try the live demo
+              </button>
+              <a href="#waitlist" className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                Join the waitlist
+              </a>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">Runs entirely in your browser. No account, nothing to install, and your data never leaves your machine.</p>
+          </div>
+
+          {/* Product frame */}
+          <div className="relative mt-12">
+            <div className="pointer-events-none absolute -top-5 right-6 z-10 hidden sm:block">
+              <ApprovalStamp by="Anna Lee" date="2026-06-20" />
+            </div>
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+              <div className="flex items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+                <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+                <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+                <span className="ml-3 hidden rounded bg-white px-3 py-0.5 font-mono text-xs text-slate-400 sm:inline">ppap-manager.app / packages</span>
+              </div>
+              <div className="p-4 sm:p-6">
+                <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Stat label="Total Packages" value={6} accent="blue" />
+                  <Stat label="Awaiting Approval" value={2} accent="amber" />
+                  <Stat label="Approved" value={1} accent="emerald" />
+                  <Stat label="Avg. Cycle Time" value="4d" />
+                </div>
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                  {heroRows.map((r) => (
+                    <div key={r.pn} className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 last:border-0">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-slate-800">{r.name}</span>
+                        <span className="font-mono text-xs text-slate-400">{r.pn}</span>
+                      </span>
+                      <span className="flex items-center gap-3">
+                        <span className="hidden w-24 sm:block"><ProgressBar pct={r.pct} /></span>
+                        <StatusPill status={r.status} />
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section id="features" className="border-b border-slate-200">
+        <div className="mx-auto max-w-6xl px-6 py-16">
+          <p className="text-xs font-semibold uppercase tracking-widest text-blue-700">What it does</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">The whole submission, in one place.</h2>
+          <div className="mt-8 grid gap-4 lg:grid-cols-3">
+
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="mb-4 flex h-32 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 px-3">
+                <div className="flex w-full items-center">
+                  <span className="flex items-center gap-1.5">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white"><CheckCircle2 size={13} /></span>
+                    <span className="text-xs font-medium text-slate-700">Draft</span>
+                  </span>
+                  <span className="mx-2 h-px flex-1 bg-emerald-400" />
+                  <span className="flex items-center gap-1.5">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-white"><Lock size={11} /></span>
+                    <span className="text-xs font-medium text-slate-700">Review</span>
+                  </span>
+                  <span className="mx-2 h-px flex-1 bg-slate-200" />
+                  <span className="flex items-center gap-1.5">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-500">3</span>
+                    <span className="text-xs text-slate-400">Approved</span>
+                  </span>
+                </div>
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900">One workflow, both sides</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                The supplier builds and submits; the customer reviews, comments, and signs. The package locks at
+                submission, reopens on return, and every step lands in the activity trail.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="mb-4 flex h-32 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 px-3">
+                <div className="grid w-full grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <p className="text-xs text-slate-400">Cpk</p>
+                    <p className="font-mono text-lg font-semibold text-slate-900">1.72</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <p className="text-xs text-slate-400">Ppk</p>
+                    <p className="font-mono text-lg font-semibold text-slate-900">1.68</p>
+                  </div>
+                  <div className="col-span-2 flex items-center gap-2">
+                    <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">Meets criteria (≥ 1.67)</span>
+                    <span className="rounded bg-amber-100 px-2 py-1 font-mono text-xs font-semibold text-amber-700">RPN 84</span>
+                  </div>
+                </div>
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900">The math is built in</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                Type measurements and get Cpk and Ppk with the AIAG ≥ 1.67 initial-study verdict. Enter EV, AV,
+                and PV for %GRR and distinct categories. FMEA rows compute RPN as you score them.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="mb-4 flex h-32 flex-col items-center justify-center gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3">
+                <ApprovalStamp small by="Anna Lee" date="2026-06-20" />
+                <span className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-mono text-xs text-slate-600">
+                  <FileText size={13} className="text-blue-600" /> PSW_SH-2045-A.pdf
+                </span>
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900">Sign it, stamp it, export it</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                Draw-to-sign warrants with a proper approval stamp, one-click PSW and package summaries as PDF,
+                and CSV for everyone who still lives in spreadsheets.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section id="how" className="border-b border-slate-200 bg-blue-800">
+        <div className="mx-auto max-w-6xl px-6 py-16">
+          <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">How it works</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Two sides, one package.</h2>
+          <div className="mt-8 grid gap-10 md:grid-cols-2">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-blue-200"><Factory size={15} /> Supplier</h3>
+              <ol className="mt-4 space-y-4">
+                {["Create the package and pick the submission level - the checklist scopes itself to what that level requires.",
+                  "Complete the required elements: upload evidence, or work in the built-in FMEA, control plan, MSA, and capability editors.",
+                  "Submit. The package locks for review, the customer is notified, and the activity trail keeps the record."].map((s, i) => (
+                  <li key={i} className="flex gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-700 font-mono text-xs font-semibold text-blue-100">{i + 1}</span>
+                    <span className="text-sm leading-relaxed text-blue-100">{s}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-blue-200"><ShieldCheck size={15} /> Customer</h3>
+              <ol className="mt-4 space-y-4">
+                {["Open the submission and review all 18 elements, with inline discussion on any of them.",
+                  "Return it with comments - the supplier sees exactly what to fix and resubmits.",
+                  "Or sign and approve. The Part Submission Warrant updates itself and the stamp goes on."].map((s, i) => (
+                  <li key={i} className="flex gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-700 font-mono text-xs font-semibold text-blue-100">{i + 1}</span>
+                    <span className="text-sm leading-relaxed text-blue-100">{s}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="border-b border-slate-200">
+        <div className="mx-auto max-w-3xl px-6 py-16">
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Questions, answered.</h2>
+          <div className="mt-6 space-y-3">
+            {faqs.map((f) => (
+              <details key={f.q} className="group rounded-xl border border-slate-200 bg-white px-5 py-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-slate-800">
+                  {f.q}
+                  <ChevronRight size={15} className="shrink-0 text-slate-300 transition group-open:rotate-90" />
+                </summary>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Waitlist */}
+      <section id="waitlist" className="border-b border-slate-200 bg-slate-50">
+        <div className="mx-auto max-w-2xl px-6 py-16 text-center">
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Bring your team.</h2>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">
+            Shared workspaces, permanent storage, and real email notifications are next.
+            Leave your work email and you'll be the first to hear.
+          </p>
+          {SITE.waitlistEndpoint ? (
+            wl === "done" ? (
+              <p className="mt-6 inline-flex items-center gap-2 rounded-lg bg-emerald-100 px-4 py-2.5 text-sm font-medium text-emerald-800"><CheckCircle2 size={16} /> You're on the list.</p>
+            ) : (
+              <div className="mx-auto mt-6 flex max-w-md gap-2">
+                <input value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && joinWaitlist()}
+                  type="email" placeholder="you@company.com" aria-label="Work email"
+                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                <button onClick={joinWaitlist} disabled={wl === "sending"}
+                  className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
+                  {wl === "sending" ? "Joining…" : "Join the waitlist"}
+                </button>
+              </div>
+            )
+          ) : SITE.linkedinUrl ? (
+            <a href={SITE.linkedinUrl} target="_blank" rel="noreferrer" className="mt-6 inline-block rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800">
+              Request early access on LinkedIn
+            </a>
+          ) : SITE.contactEmail ? (
+            <a href={"mailto:" + SITE.contactEmail + "?subject=PPAP Manager early access"} className="mt-6 inline-block rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800">
+              Email for early access
+            </a>
+          ) : (
+            <p className="mt-6 text-sm text-slate-400">Early-access signups open soon.</p>
+          )}
+          <p className="mt-4 text-xs text-slate-400">Or just try the demo - nothing to install.</p>
+        </div>
+      </section>
+
+      <footer className="bg-white">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-8 text-xs text-slate-400 sm:flex-row">
+          <span className="flex items-center gap-2"><BrandMark px={20} /> PPAP Manager <span className="font-mono">{SITE.version}</span></span>
+          <span>AIAG PPAP 4th edition reference. Not affiliated with AIAG.</span>
+          <span>
+            Product demo by Chaitanya Patwardhan
+            {SITE.linkedinUrl ? <> · <a className="text-blue-700 hover:underline" href={SITE.linkedinUrl} target="_blank" rel="noreferrer">LinkedIn</a></> : null}
+          </span>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
 /* ----------------------------- chrome ----------------------------- */
 function Sidebar({ user, route, setRoute, onLogout }) {
   const items = [
@@ -737,44 +1045,45 @@ function Sidebar({ user, route, setRoute, onLogout }) {
     ...(canManageUsers(user) ? [{ key: "members", label: "Members", icon: Users }] : []),
   ];
   return (
-    <aside className="hidden w-60 shrink-0 flex-col bg-blue-800 text-blue-100 sm:flex">
-      <div className="flex items-center gap-2.5 border-b border-white/10 px-5 py-4">
-        <BrandMark px={34} variant="light" />
+    <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white sm:flex">
+      <div className="flex items-center gap-2.5 border-b border-slate-100 px-5 py-4">
+        <BrandMark px={34} />
         <div className="leading-tight">
-          <span className="block text-sm font-semibold tracking-tight text-white">PPAP Manager</span>
-          <span className="block text-[10px] text-blue-200/80">PPAP 4th edition</span>
+          <span className="block text-sm font-semibold tracking-tight text-slate-900">PPAP Manager</span>
+          <span className="block text-[10px] text-slate-400">PPAP 4th edition</span>
         </div>
       </div>
-      <div className="border-b border-white/10 px-4 py-3">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-blue-300/80">{isCustomer(user) ? "Customer" : "Supplier"}</p>
-        <p className="text-sm font-medium text-white">{user.company}</p>
+      <div className="border-b border-slate-100 px-4 py-3">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{isCustomer(user) ? "Customer" : "Supplier"}</p>
+        <p className="text-sm font-medium text-slate-800">{user.company}</p>
       </div>
       <nav className="flex-1 px-3 py-3">
         {items.map(({ key, label, icon: Icon }) => {
           const active = route.view === key || (key === "projects" && (route.view === "project" || route.view === "element"));
           return (
             <button key={key} onClick={() => setRoute({ view: key, projectId: null, elementId: null })}
-              className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
-                active ? "bg-white font-medium text-blue-800 shadow-sm" : "text-blue-100 hover:bg-white/10 hover:text-white"}`}>
-              <Icon size={17} className={active ? "text-blue-700" : "text-blue-200"} /> {label}
+              className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                active ? "bg-blue-50 font-medium text-blue-800" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>
+              <Icon size={17} className={active ? "text-blue-700" : "text-slate-400"} /> {label}
             </button>
           );
         })}
       </nav>
-      <div className="border-t border-white/10 p-3">
+      <div className="border-t border-slate-100 p-3">
         <div className="mb-2 flex items-center gap-2.5 px-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-xs font-semibold text-white">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
             {user.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-white">{user.name}</p>
-            <p className="truncate text-[11px] text-blue-200/80">{roleLabel(user.role)}</p>
+            <p className="truncate text-sm font-medium text-slate-800">{user.name}</p>
+            <p className="truncate text-[11px] text-slate-400">{roleLabel(user.role)}</p>
           </div>
         </div>
         <button onClick={onLogout}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-blue-100 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40">
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
           <LogOut size={16} /> Sign out
         </button>
+        <p className="px-3 pt-2 font-mono text-[10px] text-slate-300">{SITE.version}</p>
       </div>
     </aside>
   );
@@ -928,7 +1237,7 @@ function Dashboard({ user, projects, updateProject, open, goProjects }) {
   );
 }
 
-const CHART_BLUE = "#2563eb";
+const CHART_BLUE = "#2E5E86";
 const STATUS_COLORS = { draft: "#94a3b8", submitted: "#f59e0b", rejected: "#ef4444", approved: "#10b981" };
 
 function AnalyticsView({ projects, users }) {
@@ -1843,8 +2152,11 @@ function ProjectView({ user, project, updateProject, openElement, back }) {
 
       {/* Approved */}
       {project.status === "approved" && (
-        <div className="mt-6 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-800"><CheckCircle2 size={15} /> Approved by {project.submission?.by || project.customer}. {project.submission?.comments}</span>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <ApprovalStamp by={project.submission?.by || project.customer} date={project.submission?.signedAt || ""} />
+            {project.submission?.comments && <span className="text-sm text-emerald-800">{project.submission.comments}</span>}
+          </div>
           {supplierLike && <button onClick={() => exportPSW(project)} className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm text-emerald-700 hover:bg-emerald-100">Export PSW</button>}
         </div>
       )}
@@ -2289,11 +2601,12 @@ function PswEditor({ project, data, setData, readOnly, user }) {
     const s = await requestSignature({ title: "Sign Part Submission Warrant", subtitle: "Affirm the declaration below on behalf of the supplier.", confirmLabel: "Sign warrant", defaultName: user?.name });
     if (s) setData({ ...data, supplierSign: s, declared: true });
   };
-  const SigBlock = ({ label, sign, statusText, tone }) => (
+  const SigBlock = ({ label, sign, statusText, tone, stamp }) => (
     <div className="rounded-lg border border-slate-200 p-3">
       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
       {sign ? (
         <>
+          {stamp && <div className="mb-2"><ApprovalStamp small by={sign.name} date={sign.date} /></div>}
           {sign.dataUrl ? <img src={sign.dataUrl} alt="signature" className="h-12 w-auto" /> : <p className="font-[cursive] text-lg text-slate-800">{sign.name}</p>}
           <p className="mt-1 text-xs text-slate-600">{sign.name} · {sign.date}</p>
         </>
@@ -2330,7 +2643,7 @@ function PswEditor({ project, data, setData, readOnly, user }) {
             </button>
           )}
         </div>
-        <SigBlock label="Customer disposition"
+        <SigBlock label="Customer disposition" stamp
           sign={sub?.status === "approved" ? { name: sub.by || project.customer, date: sub.signedAt || sub.date || "", dataUrl: sub.signature } : null}
           statusText={sub?.status === "rejected" ? `Returned for changes${sub.by ? " by " + sub.by : ""}` : "Pending customer review"}
           tone={sub?.status === "rejected" ? "text-rose-600" : "text-amber-600"} />
@@ -2535,7 +2848,7 @@ function CapabilityEditor({ data, setData, readOnly }) {
   // AIAG PPAP acceptance criteria for initial process studies (judged on Ppk):
   // >= 1.67 meets, 1.33-1.67 conditional (contact customer), < 1.33 does not meet.
   const verdict = !st ? null
-    : st.ppk >= 1.67 ? ["Meets criteria (\u2265 1.67)", "text-emerald-700 bg-emerald-100"]
+    : st.ppk >= 1.67 ? ["Meets criteria (≥ 1.67)", "text-emerald-700 bg-emerald-100"]
     : st.ppk >= 1.33 ? ["Conditional - contact customer", "text-amber-700 bg-amber-100"]
     : ["Not acceptable", "text-rose-700 bg-rose-100"];
 
@@ -2605,10 +2918,10 @@ function CapabilityEditor({ data, setData, readOnly }) {
                 <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
                 <Tooltip formatter={(v) => v.toFixed ? v.toFixed(4) : v} />
                 <ReferenceLine y={st.ucl} stroke="#ef4444" strokeDasharray="4 3" label={{ value: "UCL", position: "right", fontSize: 10, fill: "#ef4444" }} />
-                <ReferenceLine y={st.mean} stroke="#2563eb" strokeDasharray="4 3" label={{ value: "x̄", position: "right", fontSize: 10, fill: "#2563eb" }} />
+                <ReferenceLine y={st.mean} stroke="#2E5E86" strokeDasharray="4 3" label={{ value: "x̄", position: "right", fontSize: 10, fill: "#2E5E86" }} />
                 <ReferenceLine y={st.lcl} stroke="#ef4444" strokeDasharray="4 3" label={{ value: "LCL", position: "right", fontSize: 10, fill: "#ef4444" }} />
-                <Line type="monotone" dataKey="v" stroke="#2563eb" strokeWidth={2}
-                  dot={(p) => { const oo = p.payload.v > st.ucl || p.payload.v < st.lcl; return <circle key={p.key ?? `${p.cx}-${p.cy}`} cx={p.cx} cy={p.cy} r={3.5} fill={oo ? "#ef4444" : "#2563eb"} stroke="#fff" strokeWidth={1} />; }} />
+                <Line type="monotone" dataKey="v" stroke="#2E5E86" strokeWidth={2}
+                  dot={(p) => { const oo = p.payload.v > st.ucl || p.payload.v < st.lcl; return <circle key={p.key ?? `${p.cx}-${p.cy}`} cx={p.cx} cy={p.cy} r={3.5} fill={oo ? "#ef4444" : "#2E5E86"} stroke="#fff" strokeWidth={1} />; }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -2622,7 +2935,7 @@ function CapabilityEditor({ data, setData, readOnly }) {
                 <Tooltip />
                 {lslLabel && <ReferenceLine x={lslLabel} stroke="#ef4444" label={{ value: "LSL", position: "top", fontSize: 10, fill: "#ef4444" }} />}
                 {uslLabel && <ReferenceLine x={uslLabel} stroke="#ef4444" label={{ value: "USL", position: "top", fontSize: 10, fill: "#ef4444" }} />}
-                <Bar dataKey="count" fill="#93c5fd" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="count" fill="#96B7D1" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -3018,6 +3331,16 @@ function StatusIcon({ status, large }) {
   if (status === "n/a") return <Circle size={sz} className="shrink-0 text-slate-200" />;
   return <Circle size={sz} className="shrink-0 text-slate-300" />;
 }
+function ApprovalStamp({ by, date, small }) {
+  return (
+    <span className={`inline-flex -rotate-6 select-none flex-col items-center rounded-md border-2 border-emerald-600 bg-white px-3 text-emerald-700 ${small ? "py-1" : "py-1.5"}`}
+      style={{ boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.9), inset 0 0 0 3.5px rgba(5,150,105,0.45)" }}>
+      <span className={`font-semibold uppercase ${small ? "text-[10px] tracking-widest" : "text-xs tracking-widest"}`}>Approved</span>
+      <span className="font-mono text-[10px] leading-tight">{by}{date ? " · " + date : ""}</span>
+    </span>
+  );
+}
+
 function StatusPill({ status }) {
   const map = {
     draft: ["Draft", "bg-slate-100 text-slate-600"],

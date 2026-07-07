@@ -72,3 +72,30 @@ it is still a client-only demo with localStorage persistence.
 - The AIAG-VDA Action Priority (AP) mode, PSW field additions (part weight,
   engineering change level, interim approval), and Level-4 element selection
   discussed in the review are feature work, not fixes.
+
+# Changes — v1.1 (same day): professional/sellable pass
+
+Verified with `npm run build` and `npm test` (4 regression tests, including the
+new landing-page flow).
+
+- **Landing page** now greets visitors before the role picker: hero with a live
+  product frame, three feature sections, a supplier/customer "how it works,"
+  FAQ, waitlist, and footer. "Try the live demo" leads to the existing login.
+- **Waitlist**: fill in `SITE.waitlistEndpoint` in `src/App.jsx` (free Formspree
+  form) to activate the email capture; falls back to a LinkedIn or email CTA
+  via `SITE.linkedinUrl` / `SITE.contactEmail`. See "Before you launch" in the
+  README.
+- **Brand token pass**: Tailwind's blue scale is remapped in
+  `tailwind.config.js` to a desaturated "engineering ink" ramp (primary
+  #2E5E86 / #183853), so the whole app moves off the stock palette in one
+  place. Chart hexes and the favicon follow it.
+- **Typography**: IBM Plex Sans + IBM Plex Mono replace Inter, with
+  tabular figures enabled globally so part numbers, dates, and Cpk values
+  align in columns.
+- **Sidebar** restyled from the solid blue slab to white with hairline borders
+  and a quiet active pill; version tag added at the bottom.
+- **Approval stamp** (signature element): approved packages now show a rotated
+  inspection-style "APPROVED · name · date" stamp on the package view and the
+  PSW customer disposition; it also anchors the landing hero.
+- `SITE` launch config added (waitlist endpoint, LinkedIn URL, contact email,
+  version string).

@@ -42,6 +42,13 @@ npm run preview  # preview the production build locally
 npm test         # run the regression tests (vitest)
 ```
 
+## Before you launch
+
+1. In `src/App.jsx`, fill in the `SITE` constants at the top: `waitlistEndpoint`
+   (create a free form at formspree.io and paste the endpoint), `linkedinUrl`,
+   and `contactEmail`. The landing page adapts to whichever are set.
+2. In `index.html`, set the `og:image` URL to your deployed domain (see below).
+
 ## Deploy to Vercel
 
 The project needs **no configuration** — Vercel auto-detects Vite.

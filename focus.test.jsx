@@ -21,7 +21,12 @@ HTMLCanvasElement.prototype.getContext = () => ({
   beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, clearRect() {},
 });
 
+const enterDemo = async (user) => {
+  await user.click(screen.getAllByText("Try the live demo")[0]);
+};
+
 const openMsaEditor = async (user) => {
+  await enterDemo(user);
   await user.click(screen.getByText("Supplier Admin"));
   await user.click(screen.getAllByText("Packages")[0]);
   await user.click(screen.getByText("Steering Bracket")); // draft package, editable
@@ -69,6 +74,7 @@ describe("Capability editor", () => {
   it("spec-limit inputs keep focus, and the verdict follows AIAG initial-study criteria", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await enterDemo(user);
     await user.click(screen.getByText("Supplier Admin"));
     await user.click(screen.getAllByText("Packages")[0]);
     await user.click(screen.getByText("Steering Bracket"));
@@ -91,5 +97,21 @@ describe("Capability editor", () => {
     expect(screen.getByText("Ppk (overall σ)")).toBeTruthy();
     const verdicts = ["Meets criteria (≥ 1.67)", "Conditional - contact customer", "Not acceptable"];
     expect(verdicts.some((v) => screen.queryByText(v))).toBe(true);
+  }, 30000);
+});
+
+describe("Landing page", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("renders the hero, and the demo CTA leads to the role picker", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    expect(screen.getByText("PPAP approvals, out of the inbox.")).toBeTruthy();
+    expect(screen.getByText("Bring your team.")).toBeTruthy(); // waitlist section
+    await enterDemo(user);
+    expect(screen.getByText("Supplier Admin")).toBeTruthy();
+    // Back link returns to the landing page
+    await user.click(screen.getByText(/Back to overview/));
+    expect(screen.getByText("PPAP approvals, out of the inbox.")).toBeTruthy();
   }, 30000);
 });
