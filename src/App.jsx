@@ -117,7 +117,7 @@ function toast(message, tone = "success") {
 /* ---- simulated email outbox (real email needs a backend; see Resend note) ---- */
 let outboxItems = [
   { id: 1, at: "2026-06-22 09:14", to: "anna.lee@meridianmotors.com", tag: "Submitted", subject: "PPAP submitted for approval: Sensor Housing", body: "SH-2045-A Rev A from Apex Components is ready for review at Submission Level 3 (18/18 required elements complete)." },
-  { id: 2, at: "2026-06-21 11:30", to: "jane.roe@apexcomponents.com", tag: "Returned", subject: "PPAP returned for changes: Brake Assembly", body: "BR-3302-C was returned by Anna Lee. Notes: Cpk on the bore is below 1.33. Please re-run the capability study after the tooling change and resubmit." },
+  { id: 2, at: "2026-06-21 11:30", to: "jane.roe@apexcomponents.com", tag: "Returned", subject: "PPAP returned for changes: Brake Assembly", body: "BR-3302-C was returned by Anna Lee. Notes: Ppk on the bore is 0.67, below the 1.67 initial process study requirement. Please re-run the capability study after the tooling change and resubmit." },
   { id: 3, at: "2026-06-20 16:02", to: "john.doe@apexcomponents.com", tag: "Approved", subject: "PPAP approved: Cooling Module", body: "CM-8871-B was approved by Anna Lee. Notes: Reviewed and approved. Strong capability on the seal groove." },
 ];
 let outboxListeners = [];
@@ -172,21 +172,31 @@ function confirmDialog(opts) {
 }
 function ConfirmHost() {
   const [state, setState] = useState(null);
+  const [text, setText] = useState("");
   useEffect(() => {
-    confirmListener = (s) => setState(s);
+    confirmListener = (s) => { setState(s); setText(""); };
     return () => { confirmListener = null; };
   }, []);
   if (!state) return null;
-  const close = (val) => { state.resolve(val); setState(null); };
+  const needsText = !!state.input?.required && !text.trim();
+  // With an input configured, confirming resolves to the entered text instead of `true`.
+  const close = (ok) => { state.resolve(ok ? (state.input ? text.trim() : true) : false); setState(null); };
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => close(false)}>
       <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base font-semibold text-slate-900">{state.title}</h3>
         <p className="mt-1 text-sm text-slate-600">{state.body}</p>
+        {state.input && (
+          <label className="mt-3 block">
+            <span className="mb-1 block text-xs font-medium text-slate-600">{state.input.label || "Comments"}</span>
+            <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder={state.input.placeholder || ""}
+              className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </label>
+        )}
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={() => close(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
-          <button onClick={() => close(true)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${state.danger ? "bg-rose-600 hover:bg-rose-700" : "bg-blue-600 hover:bg-blue-700"}`}>{state.confirmLabel || "Confirm"}</button>
+          <button onClick={() => close(true)} disabled={needsText}
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 ${state.danger ? "bg-rose-600 hover:bg-rose-700" : "bg-blue-600 hover:bg-blue-700"}`}>{state.confirmLabel || "Confirm"}</button>
         </div>
       </div>
     </div>
@@ -226,7 +236,7 @@ function Avatar({ name, role, size = 30 }) {
 
 /* --------------------------- persistence --------------------------- */
 const STORAGE_KEY = "ppap-demo-v1";
-const DATA_VERSION = 3;
+const DATA_VERSION = 4; // v4: capability seeds updated (Ppk wording, 1.67 initial-study criterion)
 
 function loadState() {
   try {
@@ -238,10 +248,18 @@ function loadState() {
   } catch (e) { /* ignore */ }
   return null;
 }
+let storageWarned = false;
 function saveState(state) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: DATA_VERSION, ...state }));
-  } catch (e) { /* quota or privacy mode - demo still works in-session */ }
+    storageWarned = false;
+  } catch (e) {
+    // quota exceeded or privacy mode - the demo keeps working in-session
+    if (!storageWarned) {
+      storageWarned = true;
+      toast("Browser storage is full - recent changes may not survive a refresh. Remove an uploaded file to free space.", "error");
+    }
+  }
 }
 
 function blankElements() {
@@ -272,17 +290,21 @@ function spcStats(data) {
     const n = xs.length;
     const mean = xs.reduce((a, b) => a + b, 0) / n;
     const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1));
+    if (!(sd > 0)) return null; // identical readings - capability is undefined
     let mr = 0; for (let i = 1; i < n; i++) mr += Math.abs(xs[i] - xs[i - 1]);
     const mrBar = mr / (n - 1);
-    const sigmaHat = mrBar / 1.128 || sd;
-    const cp = (usl - lsl) / (6 * sd);
-    const cpk = Math.min((usl - mean) / (3 * sd), (mean - lsl) / (3 * sd));
-    return { n, mean, sd, cp, cpk, ucl: mean + 3 * sigmaHat, lcl: mean - 3 * sigmaHat, sigmaHat, xs, lsl, usl };
+    const sigmaHat = mrBar / 1.128 || sd; // within-subgroup estimate (individuals moving range)
+    const cp = (usl - lsl) / (6 * sigmaHat);
+    const cpk = Math.min((usl - mean) / (3 * sigmaHat), (mean - lsl) / (3 * sigmaHat));
+    const pp = (usl - lsl) / (6 * sd);
+    const ppk = Math.min((usl - mean) / (3 * sd), (mean - lsl) / (3 * sd));
+    return { n, mean, sd, cp, cpk, pp, ppk, ucl: mean + 3 * sigmaHat, lcl: mean - 3 * sigmaHat, sigmaHat, xs, lsl, usl };
   }
-  // fallback to summary statistics if no readings
+  // fallback to summary statistics if no readings (within/overall sigma can't be separated here)
   const mean = parseFloat(data.mean), sd = parseFloat(data.sd);
   if ([usl, lsl, mean, sd].every((v) => !isNaN(v)) && sd > 0) {
-    return { n: 0, mean, sd, cp: (usl - lsl) / (6 * sd), cpk: Math.min((usl - mean) / (3 * sd), (mean - lsl) / (3 * sd)), ucl: mean + 3 * sd, lcl: mean - 3 * sd, sigmaHat: sd, xs: [], lsl, usl };
+    const cp = (usl - lsl) / (6 * sd), cpk = Math.min((usl - mean) / (3 * sd), (mean - lsl) / (3 * sd));
+    return { n: 0, mean, sd, cp, cpk, pp: cp, ppk: cpk, ucl: mean + 3 * sd, lcl: mean - 3 * sd, sigmaHat: sd, xs: [], lsl, usl };
   }
   return null;
 }
@@ -373,7 +395,7 @@ function seedProjects() {
     {
       id: 3, name: "Brake Assembly", partNumber: "BR-3302-C", partName: "Front Brake Caliper Assembly",
       customer: CUSTOMER_CO, supplier: SUPPLIER_CO, revision: "C", level: 3,
-      status: "rejected", submission: { status: "rejected", comments: "Cpk on the bore is below 1.33. Please re-run the capability study after the tooling change and resubmit.", by: "Anna Lee" },
+      status: "rejected", submission: { status: "rejected", comments: "Ppk on the bore is 0.67, below the 1.67 initial process study requirement. Please re-run the capability study after the tooling change and resubmit.", by: "Anna Lee" },
       owner: "Jane Roe", elements: lowCpk(), due: dueIn(6),
       activity: [evt("Returned for changes by Anna Lee", 1), evt("Submitted for approval", 2), evt("Created by Jane Roe", 12)],
     },
@@ -405,7 +427,11 @@ function seedProjects() {
 export default function App() {
   const initial = loadState();
   const [user, setUser] = useState(initial?.user || null);
-  const [projects, setProjects] = useState(initial?.projects || seedProjects());
+  const [projects, setProjects] = useState(() => {
+    const ps = initial?.projects || seedProjects();
+    _id = ps.reduce((m, p) => Math.max(m, Number(p.id) || 0), _id); // keep ids unique across reloads
+    return ps;
+  });
   const [route, setRoute] = useState({ view: "dashboard", projectId: null, elementId: null });
   const [guideOpen, setGuideOpen] = useState(true);
   const [users, setUsers] = useState(initial?.users || USERS);
@@ -421,6 +447,7 @@ export default function App() {
     if (await confirmDialog({ title: "Reset the demo?", body: "This reloads the sample data and discards your changes.", confirmLabel: "Reset", danger: true })) {
       try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
       setProjects(seedProjects());
+      setUsers(USERS);
       setRoute({ view: "dashboard", projectId: null, elementId: null });
       toast("Demo reset to sample data", "info");
     }
@@ -758,7 +785,7 @@ function Content({ user, projects, setProjects, updateProject, users, setUsers, 
   const project = projects.find((p) => p.id === route.projectId);
 
   if (route.view === "element" && project) {
-    return <ElementEditor user={user} project={project} updateProject={updateProject} elementId={route.elementId}
+    return <ElementEditor user={user} users={users} project={project} updateProject={updateProject} elementId={route.elementId}
       back={() => setRoute({ view: "project", projectId: project.id, elementId: null })} />;
   }
   if (route.view === "project" && project) {
@@ -913,7 +940,7 @@ function AnalyticsView({ projects, users }) {
   projects.forEach((p) => {
     const sub = (p.activity || []).find((a) => /Submitted/.test(a.text));
     const app = (p.activity || []).find((a) => /Approved/.test(a.text));
-    if (sub && app) { const days = Math.max(1, Math.round((new Date(sub.t) - new Date(app.t)) / 86400000)); cycleRows.push({ project: p.name, days }); }
+    if (sub && app) { const days = Math.max(1, Math.round((new Date(app.t) - new Date(sub.t)) / 86400000)); cycleRows.push({ project: p.name, days }); }
   });
   const avgCycle = cycleRows.length ? Math.round(cycleRows.reduce((s, r) => s + r.days, 0) / cycleRows.length) : 0;
 
@@ -927,8 +954,6 @@ function AnalyticsView({ projects, users }) {
     { name: "Delta Precision", onTime: 78, approvals: 5 },
     { name: "Nova Castings", onTime: 70, approvals: 3 },
   ];
-
-  const completionTrend = months.map((m, i) => ({ month: m, completion: [62, 68, 71, 75, 79, 83][i] }));
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -954,7 +979,7 @@ function AnalyticsView({ projects, users }) {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Monthly Approvals">
+        <ChartCard title="Monthly Approvals" note="Illustrative demo series">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={monthly}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
@@ -966,7 +991,7 @@ function AnalyticsView({ projects, users }) {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Approval Cycle Time (days)">
+        <ChartCard title="Approval Cycle Time (days)" note="Illustrative demo series">
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={monthly}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
@@ -978,7 +1003,7 @@ function AnalyticsView({ projects, users }) {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Supplier Performance (on-time %)">
+        <ChartCard title="Supplier Performance (on-time %)" note="Illustrative demo series">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={supplierPerf} layout="vertical" margin={{ left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
@@ -993,7 +1018,7 @@ function AnalyticsView({ projects, users }) {
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Top Suppliers</h3>
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">Top Suppliers <span className="ml-1 text-[11px] font-normal text-slate-400">Illustrative demo data</span></h3>
           <table className="w-full text-sm">
             <thead><tr className="text-left text-xs uppercase tracking-wide text-slate-400"><th className="py-1.5">Supplier</th><th className="py-1.5">On-time</th><th className="py-1.5">Approved</th></tr></thead>
             <tbody>
@@ -1020,10 +1045,13 @@ function AnalyticsView({ projects, users }) {
     </div>
   );
 }
-function ChartCard({ title, children }) {
+function ChartCard({ title, note, children }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <h3 className="mb-3 text-sm font-semibold text-slate-700">{title}</h3>
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
+        {note && <span className="text-[11px] text-slate-400">{note}</span>}
+      </div>
       {children}
     </div>
   );
@@ -1267,20 +1295,71 @@ function ProjectsList({ user, projects, setProjects, updateProject, open }) {
   };
 
   const del = async (id) => {
+    const p = projects.find((x) => x.id === id);
+    if (p?.status === "approved") { toast("Approved packages are retained as quality records in this demo", "error"); return; }
     if (await confirmDialog({ title: "Delete PPAP package", body: "Are you sure you want to delete this PPAP package?", confirmLabel: "Delete", danger: true })) {
-      setProjects((ps) => ps.filter((p) => p.id !== id));
+      setProjects((ps) => ps.filter((x) => x.id !== id));
       toast("Package deleted", "info");
     }
   };
 
-  const submit = (p) => { updateProject(p.id, (pr) => withEvent({ ...pr, status: "submitted", submission: { status: "pending", comments: "" } }, "Submitted for approval")); toast("Submitted to customer"); notifyStatus(p, "submitted"); };
-  const moveStatus = (id, status) => {
+  const submit = (p) => {
+    const pr = progressOf(p);
+    if (pr.done !== pr.total) { toast(`Complete all ${pr.total} required elements before submitting`, "error"); return; }
+    updateProject(p.id, (x) => withEvent({ ...x, status: "submitted", submission: { status: "pending", comments: "" } }, "Submitted for approval"));
+    toast("Submitted to customer");
+    notifyStatus(p, "submitted");
+  };
+  const moveStatus = (id, status, extra = {}) => {
     const p = projects.find((x) => x.id === id);
+    const by = extra.sign?.name || user.name;
+    const eventText =
+      status === "approved" ? `Approved by ${by}`
+        : status === "rejected" ? `Returned for changes by ${by}`
+        : status === "submitted" ? "Submitted for approval"
+        : "Reopened for edits";
     updateProject(id, (pr) => withEvent({
       ...pr, status,
-      submission: status === "submitted" ? { status: "pending", comments: "" } : status === "approved" ? { ...(pr.submission || {}), status: "approved" } : status === "rejected" ? { ...(pr.submission || {}), status: "rejected" } : null,
-    }, `Moved to ${STATUS_FLOW.find((s) => s.key === status)?.label || status}`));
-    if (p && ["submitted", "approved", "rejected"].includes(status)) notifyStatus(p, status, { by: user.name });
+      submission:
+        status === "submitted" ? { status: "pending", comments: "" }
+          : status === "approved" ? { ...(pr.submission || {}), status: "approved", by, signature: extra.sign?.dataUrl, signedAt: extra.sign?.date, comments: extra.comments ?? (pr.submission?.comments || "") }
+          : status === "rejected" ? { ...(pr.submission || {}), status: "rejected", by, comments: extra.comments ?? (pr.submission?.comments || "") }
+          : null,
+    }, eventText));
+    if (p && ["submitted", "approved", "rejected"].includes(status)) notifyStatus(p, status, { by, comments: extra.comments });
+    if (status === "approved") toast("Package approved");
+    else if (status === "rejected") toast("Returned to supplier", "info");
+    else toast(`Moved to ${STATUS_FLOW.find((s) => s.key === status)?.label || status}`);
+  };
+
+  // Board drags go through the same gates as the buttons: completeness to submit,
+  // a signature to approve, and comments to return. Everything else is blocked.
+  const attemptMove = async (p, status) => {
+    if (p.status === status) return;
+    const label = STATUS_FLOW.find((s) => s.key === status)?.label || status;
+    if (isSupplier(user)) {
+      if (p.status === "draft" && status === "submitted") {
+        const pr = progressOf(p);
+        if (pr.done !== pr.total) { toast(`Complete all ${pr.total} required elements before submitting`, "error"); return; }
+        moveStatus(p.id, "submitted"); return;
+      }
+      if (p.status === "rejected" && status === "draft") { moveStatus(p.id, "draft"); return; }
+      if (p.status === "submitted") { toast("Locked for customer review - the customer decides the next move", "error"); return; }
+      if (p.status === "approved") { toast("Approved packages are locked as quality records", "error"); return; }
+      toast(`Suppliers can't move a package to ${label}`, "error"); return;
+    }
+    if (p.status !== "submitted") { toast("Only submitted packages can be approved or returned", "error"); return; }
+    if (status === "approved") {
+      const s = await requestSignature({ title: "Sign to approve", subtitle: `Approve ${p.name} on behalf of ${p.customer}.`, confirmLabel: "Sign & approve", defaultName: user.name });
+      if (s) moveStatus(p.id, "approved", { sign: s });
+      return;
+    }
+    if (status === "rejected") {
+      const c = await confirmDialog({ title: "Return for changes", body: `Return ${p.name} to ${p.supplier} with review comments.`, confirmLabel: "Return package", danger: true, input: { label: "Review comments", placeholder: "What needs to change before resubmission?", required: true } });
+      if (c) moveStatus(p.id, "rejected", { comments: String(c) });
+      return;
+    }
+    toast(`Customers can't move a package to ${label}`, "error");
   };
 
   const term = q.trim().toLowerCase();
@@ -1343,7 +1422,7 @@ function ProjectsList({ user, projects, setProjects, updateProject, open }) {
       ) : view === "table" ? (
         <PackagesTable rows={shown} user={user} canBuild={canBuild} open={open} submit={submit} del={del} />
       ) : (
-        <PipelineBoard rows={shown} user={user} open={open} moveStatus={moveStatus} />
+        <PipelineBoard rows={shown} user={user} open={open} attemptMove={attemptMove} />
       )}
     </div>
   );
@@ -1400,7 +1479,7 @@ function PackagesTable({ rows, user, canBuild, open, submit, del }) {
                         {canBuild && <RowAction label="Edit" onClick={() => { setMenu(null); open(p.id); }} />}
                         {canBuild && p.status === "draft" && <RowAction label="Submit" onClick={() => { setMenu(null); submit(p); }} />}
                         <RowAction label="Export PDF" onClick={() => { setMenu(null); exportPackage(p); }} />
-                        <RowAction label="Export Excel" onClick={() => { setMenu(null); exportCSV(p); }} />
+                        <RowAction label="Export CSV" onClick={() => { setMenu(null); exportCSV(p); }} />
                         {canBuild && <RowAction label="Delete" danger onClick={() => { setMenu(null); del(p.id); }} />}
                       </div>
                     </>
@@ -1421,23 +1500,17 @@ function RowAction({ label, onClick, danger }) {
   );
 }
 
-function PipelineBoard({ rows, user, open, moveStatus }) {
+function PipelineBoard({ rows, user, open, attemptMove }) {
   const [dragId, setDragId] = useState(null);
   const [over, setOver] = useState(null);
   const cols = STATUS_FLOW;
 
-  const allowed = (status) => {
-    if (isCustomer(user)) return status === "approved" || status === "rejected";
-    return status === "draft" || status === "submitted"; // supplier can draft/submit
-  };
   const onDrop = (status) => {
     setOver(null);
     const p = rows.find((r) => r.id === dragId);
     setDragId(null);
     if (!p || p.status === status) return;
-    if (!allowed(status)) { toast(`You cannot move a package to ${STATUS_FLOW.find((s) => s.key === status)?.label}`, "error"); return; }
-    moveStatus(p.id, status);
-    toast(`Moved to ${STATUS_FLOW.find((s) => s.key === status)?.label}`);
+    attemptMove(p, status); // centrally validated: gates, signature, and comments enforced
   };
 
   return (
@@ -1624,7 +1697,7 @@ function ProjectView({ user, project, updateProject, openElement, back }) {
             </button>
             <button onClick={() => exportCSV(project)}
               className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
-              <Table2 size={15} /> Excel
+              <Table2 size={15} /> CSV
             </button>
             <button onClick={() => exportPSW(project)}
               className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
@@ -1825,7 +1898,7 @@ function StageStepper({ status }) {
 }
 
 /* --------------------------- element editor --------------------------- */
-function ElementFiles({ user, files, owner, canEdit, onAdd, onAssign }) {
+function ElementFiles({ user, users, files, owner, canEdit, onAdd, onAssign }) {
   const [hist, setHist] = useState(false);
   const [preview, setPreview] = useState(null);
   const [drag, setDrag] = useState(false);
@@ -1833,11 +1906,16 @@ function ElementFiles({ user, files, owner, canEdit, onAdd, onAssign }) {
   const replaceRef = React.useRef(null);
   const sorted = [...files].sort((a, b) => (b.version || 1) - (a.version || 1));
   const latest = sorted[0];
-  const supplierUsers = USERS.filter((u) => u.company === SUPPLIER_CO);
+  const supplierUsers = (users || USERS).filter((u) => roleOrg(u.role) === "supplier");
 
+  const MAX_INLINE = 2 * 1024 * 1024; // keep stored files well under the ~5 MB localStorage quota
   const ingest = (file, asName) => {
     if (!file) return;
-    if (file.size > 8 * 1024 * 1024) { toast("File is larger than 8 MB; please use a smaller file in the demo", "error"); return; }
+    if (file.size > MAX_INLINE) {
+      onAdd({ name: asName || file.name, size: file.size, type: file.type });
+      toast(`${asName || file.name} is over 2 MB - recorded as name and size only in the demo`, "info");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       onAdd({ name: asName || file.name, size: file.size, type: file.type, dataUrl: reader.result });
@@ -1901,7 +1979,7 @@ function ElementFiles({ user, files, owner, canEdit, onAdd, onAssign }) {
           <input ref={replaceRef} type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { ingest(e.target.files[0], latest?.name); e.target.value = ""; }} />
         </div>
       )}
-      <p className="mt-2 text-[11px] text-slate-400">Uploaded files stay in your browser for this session. Seeded sample files show metadata only.</p>
+      <p className="mt-2 text-[11px] text-slate-400">Files up to 2 MB are stored in this browser and survive a refresh; larger files are recorded as name and size only. Seeded sample files show metadata only.</p>
 
       {hist && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setHist(false)}>
@@ -1947,7 +2025,7 @@ function ElementFiles({ user, files, owner, canEdit, onAdd, onAssign }) {
   );
 }
 
-function ElementEditor({ user, project, updateProject, elementId, back }) {
+function ElementEditor({ user, users, project, updateProject, elementId, back }) {
   const el = ELEMENTS.find((e) => e.id === elementId);
   const state = project.elements[elementId];
   const isCEA = el.id === "customer_engineering_approval";
@@ -2014,7 +2092,7 @@ function ElementEditor({ user, project, updateProject, elementId, back }) {
         {el.kind === "upload" && <UploadEditor data={state.data} setData={setData} readOnly={fieldsReadOnly} />}
       </div>
 
-      <ElementFiles user={user} files={files} owner={state.data?.owner} canEdit={!fieldsReadOnly}
+      <ElementFiles user={user} users={users} files={files} owner={state.data?.owner} canEdit={!fieldsReadOnly}
         onAdd={addFile} onAssign={assignOwner} />
 
       {isCEA ? (
@@ -2415,7 +2493,9 @@ function MsaEditor({ data, setData, readOnly }) {
   const pctTol = grr != null && !isNaN(tol) && tol > 0 ? ((6 * grr) / tol) * 100 : null;
   const ndc = valid && grr > 0 ? Math.floor(1.41 * (pv / grr)) : null;
   const verdict = pctTV == null ? null : pctTV < 10 ? ["Acceptable", "text-emerald-700 bg-emerald-100"] : pctTV <= 30 ? ["Marginal", "text-amber-700 bg-amber-100"] : ["Unacceptable", "text-rose-700 bg-rose-100"];
-  const Inp = ({ k, label, hint }) => (
+  // Plain function calls (not a <Component/> defined in render), so React never
+  // remounts these inputs mid-keystroke and they keep focus while typing.
+  const inp = (k, label, hint) => (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
       <NumCell value={data[k] || ""} onChange={set(k)} disabled={readOnly} w="w-full" />
@@ -2426,10 +2506,10 @@ function MsaEditor({ data, setData, readOnly }) {
     <div>
       <div className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Gauge size={16} className="text-blue-500" /> Gage R&R from variation estimates - %GRR and distinct categories compute automatically.</div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Inp k="ev" label="Repeatability (EV)" hint="equipment σ" />
-        <Inp k="av" label="Reproducibility (AV)" hint="appraiser σ" />
-        <Inp k="pv" label="Part variation (PV)" hint="part σ" />
-        <Inp k="tol" label="Tolerance (opt.)" hint="USL − LSL" />
+        {inp("ev", "Repeatability (EV)", "equipment σ")}
+        {inp("av", "Reproducibility (AV)", "appraiser σ")}
+        {inp("pv", "Part variation (PV)", "part σ")}
+        {inp("tol", "Tolerance (opt.)", "USL − LSL")}
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Metric label="GRR" value={grr != null ? grr.toFixed(3) : "-"} />
@@ -2452,7 +2532,12 @@ function CapabilityEditor({ data, setData, readOnly }) {
   const set = (k) => (e) => setData({ ...data, [k]: e.target.value });
   const readingsText = Array.isArray(data.readings) ? data.readings.join(", ") : (data.readings || "");
   const st = spcStats(data);
-  const verdict = !st ? null : st.cpk >= 1.67 ? ["Excellent", "text-emerald-700 bg-emerald-100"] : st.cpk >= 1.33 ? ["Capable", "text-emerald-700 bg-emerald-100"] : st.cpk >= 1.0 ? ["Marginal", "text-amber-700 bg-amber-100"] : ["Not capable", "text-rose-700 bg-rose-100"];
+  // AIAG PPAP acceptance criteria for initial process studies (judged on Ppk):
+  // >= 1.67 meets, 1.33-1.67 conditional (contact customer), < 1.33 does not meet.
+  const verdict = !st ? null
+    : st.ppk >= 1.67 ? ["Meets criteria (\u2265 1.67)", "text-emerald-700 bg-emerald-100"]
+    : st.ppk >= 1.33 ? ["Conditional - contact customer", "text-amber-700 bg-amber-100"]
+    : ["Not acceptable", "text-rose-700 bg-rose-100"];
 
   // control chart series
   const lsl = parseFloat(data.lsl), usl = parseFloat(data.usl), target = parseFloat(data.target);
@@ -2472,7 +2557,9 @@ function CapabilityEditor({ data, setData, readOnly }) {
     if (!isNaN(usl)) uslLabel = bins[nearest(usl)].label;
   }
 
-  const Inp = ({ k, label, ph }) => (
+  // Plain function calls (not a <Component/> defined in render), so React never
+  // remounts these inputs mid-keystroke and they keep focus while typing.
+  const inp = (k, label, ph) => (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
       <NumCell value={data[k] || ""} onChange={set(k)} disabled={readOnly} w="w-full" placeholder={ph} />
@@ -2481,11 +2568,11 @@ function CapabilityEditor({ data, setData, readOnly }) {
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Gauge size={16} className="text-blue-500" /> Initial process study. Enter the spec limits and individual measurements; Cpk, control limits, and the charts update automatically.</div>
+      <div className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Gauge size={16} className="text-blue-500" /> Initial process study. Enter the spec limits and individual measurements; Cpk, Ppk, control limits, and the charts update automatically.</div>
       <div className="grid grid-cols-3 gap-3">
-        <Inp k="lsl" label="Lower spec (LSL)" ph="11.98" />
-        <Inp k="target" label="Target" ph="12.00" />
-        <Inp k="usl" label="Upper spec (USL)" ph="12.02" />
+        {inp("lsl", "Lower spec (LSL)", "11.98")}
+        {inp("target", "Target", "12.00")}
+        {inp("usl", "Upper spec (USL)", "12.02")}
       </div>
       <label className="mt-3 block">
         <span className="mb-1 block text-xs font-medium text-slate-600">Measurements (comma or space separated)</span>
@@ -2496,10 +2583,10 @@ function CapabilityEditor({ data, setData, readOnly }) {
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Metric label="n" value={st ? st.n || st.xs.length || "-" : "-"} />
-        <Metric label="Cp" value={st ? st.cp.toFixed(2) : "-"} />
-        <Metric label="Cpk" value={st ? st.cpk.toFixed(2) : "-"} />
+        <Metric label="Cpk (within σ)" value={st ? st.cpk.toFixed(2) : "-"} />
+        <Metric label="Ppk (overall σ)" value={st ? st.ppk.toFixed(2) : "-"} />
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs text-slate-500">Verdict</p>
+          <p className="text-xs text-slate-500">Verdict (on Ppk)</p>
           {verdict ? <span className={`mt-1 inline-block rounded px-2 py-1 text-sm font-semibold ${verdict[1]}`}>{verdict[0]}</span> : <p className="text-slate-300">-</p>}
         </div>
       </div>
@@ -2541,7 +2628,7 @@ function CapabilityEditor({ data, setData, readOnly }) {
           </div>
         </div>
       )}
-      <p className="mt-3 text-xs text-slate-400">Control limits use the moving-range estimate of sigma (MR-bar / 1.128). Cpk ≥ 1.33 is the common automotive threshold for a capable process.</p>
+      <p className="mt-3 text-xs text-slate-400">Cpk and the control limits use the within (moving-range) sigma estimate, MR-bar / 1.128; Ppk uses overall sigma. AIAG PPAP acceptance for initial process studies: index ≥ 1.67 meets criteria, 1.33-1.67 may be conditionally accepted (contact the customer), below 1.33 does not meet.</p>
     </div>
   );
 }
@@ -2724,7 +2811,7 @@ function elementSummary(kind, data) {
   }
   if (kind === "capability") {
     const st = spcStats(data);
-    if (st) return `Cpk ${st.cpk.toFixed(2)}`;
+    if (st) return `Cpk ${st.cpk.toFixed(2)} / Ppk ${st.ppk.toFixed(2)}`;
   }
   if (kind === "psw" && data.reason) return data.reason;
   if (data.files?.length) return `${data.files.length} document(s)`;

@@ -17,7 +17,7 @@ fall over under load. Each visitor gets their own private sandbox.
   - **Dimensional Results** with automatic **PASS/FAIL** against the tolerance band.
   - **Control Plan** table, **Process Flow** step builder, **Material/Performance** results.
   - **MSA Gage R&R** calculator (%GRR, distinct categories, acceptability verdict).
-  - **Initial Process Studies** capability calculator (**Cp / Cpk** with verdict).
+  - **Initial Process Studies** capability calculator (**Cpk / Ppk** with the AIAG ≥ 1.67 initial-study verdict).
   - **Customer-Specific Requirements** checklist and a **Part Submission Warrant** cover sheet.
 - **Submission-level logic** — levels 1–5 change which elements are required.
 - **Workflow gates** — a Build → Customer review → Approved stage stepper; the supplier can't
@@ -39,6 +39,7 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # production build into dist/
 npm run preview  # preview the production build locally
+npm test         # run the regression tests (vitest)
 ```
 
 ## Deploy to Vercel
@@ -52,6 +53,8 @@ The project needs **no configuration** — Vercel auto-detects Vite.
    - Build command: `npm run build`
    - Output directory: `dist`
 4. Click **Deploy**. You'll get a public URL to share.
+5. Put that URL into the `og:image` tag in `index.html` (replacing `YOUR-DEPLOYMENT-URL`)
+   and redeploy, so LinkedIn and other platforms render the preview card from `public/og.png`.
 
 **Option B — from the CLI:**
 ```bash
@@ -64,8 +67,8 @@ vercel --prod # promote to production
 
 - Data lives only in the current browser; clearing site data or using a different
   device starts fresh. That's intentional for a public demo.
-- Document uploads are **recorded** (name and size) to show the workflow, but the file
-  contents are not stored.
+- Document uploads up to 2 MB are stored in the visitor's own browser (so preview and
+  download work); larger uploads are recorded as name and size only.
 - To turn this into a real multi-user product (shared database, accounts, persistent
   file storage), the natural next step is serverless API routes backed by a hosted
   Postgres (e.g. Neon) and an object store (e.g. Vercel Blob) for uploads.
